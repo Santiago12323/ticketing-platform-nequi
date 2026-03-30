@@ -71,11 +71,36 @@ public record Money(BigDecimal amount, Currency currency) {
         );
     }
 
+    /**
+     * Compares this Money instance with another to determine if it is greater.
+     *
+     * <p>Both Money objects must have the same currency. If the currencies differ,
+     * an {@link IllegalArgumentException} is thrown.</p>
+     *
+     * @param other the Money instance to compare against
+     * @return {@code true} if this amount is greater than the other amount,
+     *         {@code false} otherwise
+     * @throws NullPointerException if {@code other} is null
+     * @throws IllegalArgumentException if the currencies do not match
+     */
     public boolean isGreaterThan(Money other) {
         validateSameCurrency(other);
         return this.amount.compareTo(other.amount) > 0;
     }
 
+    /**
+     * Determines whether this Money instance has the same value as another.
+     *
+     * <p>Two Money objects are considered to have the same value if:
+     * <ul>
+     *   <li>Their amounts are numerically equal (ignoring scale differences, e.g., 10.0 == 10.00)</li>
+     *   <li>Their currencies are equal</li>
+     * </ul>
+     * </p>
+     *
+     * @param other the Money instance to compare against
+     * @return {@code true} if both amount and currency are equal, {@code false} otherwise
+     */
     public boolean sameValue(Money other) {
         return this.amount.compareTo(other.amount) == 0
                 && this.currency.equals(other.currency);
