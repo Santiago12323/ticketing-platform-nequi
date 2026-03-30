@@ -1,24 +1,62 @@
-# Compiled class file
-*.class
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
-# Log file
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# ── Seguridad - CRÍTICO ────────────────────────────────────────
+# Nunca subir credenciales ni secretos
+.env
+.env.*
+*.env
+application-local.yml
+application-local.yaml
+application-secrets.yml
+application-secrets.yaml
+*-credentials.json
+*.pem
+*.key
+*.p12
+*.jks
+
+# ── Docker ────────────────────────────────────────────────────
 *.log
+docker-compose.override.yml    # overrides locales nunca van al repo
 
-# BlueJ files
-*.ctxt
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store                      # Mac
+Thumbs.db                      # Windows
+desktop.ini
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# ── Tests y cobertura ─────────────────────────────────────────
+*.exec
+jacoco.xml
+/coverage/
