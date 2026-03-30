@@ -1,0 +1,16 @@
+
+ticketing:
+  statemachine:
+    audit-enabled: true
+
+aws:
+  endpoint-override: http://localhost:4566
+  region: us-east-1
+  access-key: test
+  secret-key: test
+
+logging:
+  level:
+    root: INFO
+    com.nequi: DEBUG
+    org.springframework.statemachine: DEBUG
