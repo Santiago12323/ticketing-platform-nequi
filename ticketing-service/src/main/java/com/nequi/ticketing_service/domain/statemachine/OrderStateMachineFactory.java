@@ -31,7 +31,7 @@ public class OrderStateMachineFactory {
     public StateMachine<TicketStatus, OrderEvent> create(String orderId) {
         StateMachine<TicketStatus, OrderEvent> sm = factory.getStateMachine(orderId);
 
-        sm.startReactively().block(); // asegurar inicio
+        sm.startReactively().block();
 
         return sm;
     }
@@ -44,7 +44,6 @@ public class OrderStateMachineFactory {
 
         StateMachine<TicketStatus, OrderEvent> sm = factory.getStateMachine(orderId);
 
-        // detener antes de resetear (evita estados inconsistentes)
         sm.stopReactively().block();
 
         sm.getStateMachineAccessor()

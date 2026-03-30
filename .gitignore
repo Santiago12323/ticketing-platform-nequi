@@ -37,10 +37,13 @@ build/
 .env
 .env.*
 *.env
-application-local.yml
-application-local.yaml
 application-secrets.yml
 application-secrets.yaml
+.env
+.env.*
+*.env
+*.pem
+*.key
 *-credentials.json
 *.pem
 *.key
