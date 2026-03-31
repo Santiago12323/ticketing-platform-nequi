@@ -1,7 +1,7 @@
 package com.nequi.ticketing_service.domain.statemachine;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.Message;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.StateMachineConfigurerAdapter;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
@@ -10,15 +10,8 @@ import org.springframework.statemachine.config.builders.StateMachineTransitionCo
 
 import java.util.EnumSet;
 
-/**
- * State Machine for Ticket lifecycle.
- *
- * Improvements:
- * - No ambiguous events (START vs CONFIRM_PAYMENT)
- * - Explicit cancel flow
- * - Async-friendly design (ready for WebFlux + messaging)
- * - Listener attached for auditing
- */
+
+@Slf4j
 @Configuration
 @EnableStateMachineFactory
 public class OrderStateMachineConfig
@@ -30,28 +23,19 @@ public class OrderStateMachineConfig
         this.listener = listener;
     }
 
-    /**
-     * GENERAL CONFIG (listener, startup behavior)
-     */
-    @Override
-    public void configure(
-            StateMachineConfigurationConfigurer<TicketStatus, OrderEvent> config)
-            throws Exception {
 
+    @Override
+    public void configure(StateMachineConfigurationConfigurer<TicketStatus, OrderEvent> config)
+            throws Exception {
         config
                 .withConfiguration()
-                .autoStartup(true)
+                .autoStartup(false) // aquí sí puedes desactivar el arranque automático
                 .listener(listener);
     }
 
-    /**
-     * STATES
-     */
     @Override
-    public void configure(
-            StateMachineStateConfigurer<TicketStatus, OrderEvent> states)
+    public void configure(StateMachineStateConfigurer<TicketStatus, OrderEvent> states)
             throws Exception {
-
         states
                 .withStates()
                 .initial(TicketStatus.AVAILABLE)
@@ -60,13 +44,10 @@ public class OrderStateMachineConfig
                 .states(EnumSet.allOf(TicketStatus.class));
     }
 
-    /**
-     * TRANSITIONS
-     */
     @Override
-    public void configure(
-            StateMachineTransitionConfigurer<TicketStatus, OrderEvent> transitions)
+    public void configure(StateMachineTransitionConfigurer<TicketStatus, OrderEvent> transitions)
             throws Exception {
+        log.info("Configuring transitions for Ticket lifecycle");
 
         transitions
 

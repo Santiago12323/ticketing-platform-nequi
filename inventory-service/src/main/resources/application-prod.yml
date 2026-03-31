@@ -1,11 +1,11 @@
-
-
 ticketing:
   statemachine:
     audit-enabled: false
 
 aws:
   region: ${AWS_REGION}
+  access-key: ${AWS_ACCESS_KEY_ID}
+  secret-key: ${AWS_SECRET_ACCESS_KEY}
   dynamodb:
     table-orders: ${DYNAMODB_TABLE_ORDERS:orders}
     table-events: ${DYNAMODB_TABLE_EVENTS:events}
@@ -14,6 +14,12 @@ aws:
   sqs:
     queue-url: ${SQS_QUEUE_URL}
     dead-letter-queue-url: ${SQS_DLQ_URL}
+
+spring:
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD}
 
 logging:
   level:
