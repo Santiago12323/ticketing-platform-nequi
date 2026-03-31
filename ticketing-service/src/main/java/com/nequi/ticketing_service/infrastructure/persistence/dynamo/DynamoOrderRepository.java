@@ -4,8 +4,8 @@ import com.nequi.ticketing_service.domain.model.order.Order;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
+import com.nequi.ticketing_service.infrastructure.persistence.factory.OrderFactory;
 import com.nequi.ticketing_service.infrastructure.persistence.mapper.OrderEntityMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
@@ -19,14 +19,16 @@ public class DynamoOrderRepository implements OrderRepository {
 
     private final DynamoDbAsyncTable<OrderEntity> orderTable;
     private final OrderEntityMapper mapper;
+    private final OrderFactory factory;
 
     @Autowired
     public DynamoOrderRepository(DynamoDbAsyncTable<OrderEntity> orderTable,
-                                 OrderEntityMapper mapper) {
+                                 OrderEntityMapper mapper,
+                                 OrderFactory factory) {
         this.orderTable = orderTable;
         this.mapper = mapper;
+        this.factory = factory;
     }
-
 
     @Override
     public Mono<Order> save(Order order, List<String> seatIds) {
@@ -43,7 +45,8 @@ public class DynamoOrderRepository implements OrderRepository {
                     if (entity == null) {
                         return Mono.error(new RuntimeException("Order not found"));
                     }
-                    return Mono.just(mapper.toDomain(entity));
+                    return factory.fromEntity(entity);
                 });
     }
+
 }

@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+    volumes:
+      - ./dynamodb-data:/home/dynamodblocal/data
+    environment:
+      AWS_ACCESS_KEY_ID: dummy
+      AWS_SECRET_ACCESS_KEY: dummy
+      AWS_REGION: us-west-2
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    command: ["redis-server", "--requirepass", "SuperSecret123"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - AWS_REGION=us-west-2
+      - LOCALSTACK_AUTH_TOKEN=ls-cUBI6223-vihE-3866-feTI-lOwuyEWIf5ed
+    volumes:
+      - ./localstack-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
