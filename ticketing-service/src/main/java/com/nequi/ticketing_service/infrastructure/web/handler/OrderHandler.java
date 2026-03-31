@@ -1,6 +1,6 @@
 package com.nequi.ticketing_service.infrastructure.web.handler;
 
-import com.nequi.ticketing_service.application.usecase.CreateOrderUseCase;
+import com.nequi.ticketing_service.domain.port.in.CreateOrderUseCase;
 import com.nequi.ticketing_service.domain.valueobject.*;
 import com.nequi.ticketing_service.infrastructure.web.dto.request.CreateOrderRequest;
 import com.nequi.ticketing_service.infrastructure.web.dto.response.CreateOrderResponse;
@@ -36,4 +36,5 @@ public class OrderHandler {
                             });
                 });
     }
+
 }

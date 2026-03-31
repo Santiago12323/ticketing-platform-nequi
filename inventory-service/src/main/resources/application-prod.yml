@@ -1,0 +1,21 @@
+
+
+ticketing:
+  statemachine:
+    audit-enabled: false
+
+aws:
+  region: ${AWS_REGION}
+  dynamodb:
+    table-orders: ${DYNAMODB_TABLE_ORDERS:orders}
+    table-events: ${DYNAMODB_TABLE_EVENTS:events}
+    table-inventory: ${DYNAMODB_TABLE_INVENTORY:inventory}
+    table-outbox: ${DYNAMODB_TABLE_OUTBOX:outbox}
+  sqs:
+    queue-url: ${SQS_QUEUE_URL}
+    dead-letter-queue-url: ${SQS_DLQ_URL}
+
+logging:
+  level:
+    root: WARN
+    com.nequi: INFO
