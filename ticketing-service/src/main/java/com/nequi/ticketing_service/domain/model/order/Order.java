@@ -1,5 +1,7 @@
 package com.nequi.ticketing_service.domain.model.order;
 
+import com.nequi.ticketing_service.domain.exception.BusinessException;
+import com.nequi.ticketing_service.domain.exception.ErrorCode;
 import com.nequi.ticketing_service.domain.statemachine.*;
 import com.nequi.ticketing_service.domain.valueobject.*;
 import lombok.EqualsAndHashCode;
@@ -63,7 +65,8 @@ public class Order {
                         .build()
         );
         if (!accepted) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.ORDER_EVENT_NOT_ACCEPTED.code(),
                     "Event %s not accepted from state %s"
                             .formatted(event, getStatus())
             );
