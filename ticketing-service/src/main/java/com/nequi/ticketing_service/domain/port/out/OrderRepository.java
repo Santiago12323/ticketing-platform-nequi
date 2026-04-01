@@ -7,5 +7,8 @@ import reactor.core.publisher.Mono;
 
 public interface OrderRepository {
     Mono<Order> save(Order order, java.util.List<String> seatIds);
+
+    Mono<Order> updateStatus(Order order);
+
     Mono<Order> findById(OrderId id);
 }

@@ -23,7 +23,7 @@ public class SqsConfig {
     @Value("${aws.region:us-east-1}")
     private String region;
 
-    @Value("${aws.sqs.endpoint:http://localhost:4566}")
+    @Value("${aws.sqs.endpoint}")
     private String sqsEndpoint;
 
     @Bean

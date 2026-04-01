@@ -1,4 +1,4 @@
-package com.nequi.ticketing_service.infrastructure.messaging.dto.enums;
+package com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.enums;
 
 public enum InventoryErrorCode {
     INSUFFICIENT_STOCK,

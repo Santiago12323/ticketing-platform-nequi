@@ -1,12 +1,10 @@
 package com.nequi.ticketing_service.infrastructure.persistence.factory;
 
 import com.nequi.ticketing_service.domain.model.order.Order;
-import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
-import com.nequi.ticketing_service.domain.statemachine.OrderStateMachineFactory;
-import com.nequi.ticketing_service.domain.statemachine.TicketStatus;
+import com.nequi.ticketing_service.domain.statemachine.OrderStatus;
+import com.nequi.ticketing_service.domain.statemachine.machine.OrderStateMachineFactory;
 import com.nequi.ticketing_service.domain.valueobject.*;
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
-import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -39,7 +37,7 @@ public class OrderFactory {
                             sm.getStateMachineAccessor().doWithAllRegions(access ->
                                     access.resetStateMachineReactively(
                                             new DefaultStateMachineContext<>(
-                                                    TicketStatus.valueOf(entity.getStatus()),
+                                                    OrderStatus.valueOf(entity.getStatus()),
                                                     null, null, null
                                             )
                                     ).subscribe()

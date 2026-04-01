@@ -1,15 +1,16 @@
 package com.nequi.ticketing_service.domain.model.order;
 
 import com.nequi.ticketing_service.domain.exception.BusinessException;
-import com.nequi.ticketing_service.domain.exception.ErrorCode;
 import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
-import com.nequi.ticketing_service.domain.statemachine.OrderStateMachineFactory;
-import com.nequi.ticketing_service.domain.statemachine.TicketStatus;
+import com.nequi.ticketing_service.domain.statemachine.machine.OrderStateMachineFactory;
+import com.nequi.ticketing_service.domain.statemachine.OrderStatus;
 import com.nequi.ticketing_service.domain.valueobject.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.statemachine.StateMachine;
+import org.springframework.statemachine.StateMachineEventResult;
+import org.springframework.messaging.support.MessageBuilder;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -23,52 +24,68 @@ public class Order {
     private final UserId userId;
     private final EventId eventId;
     private final Money totalPrice;
-    private final StateMachine<TicketStatus, OrderEvent> stateMachine;
+    private final StateMachine<OrderStatus, OrderEvent> stateMachine;
 
     private final Instant createdAt = Instant.now();
     private Instant updatedAt = createdAt;
 
-    public static Mono<Order> create(UserId userId,
+    public static Mono<Order> create(OrderId orderId,
+                                     UserId userId,
                                      EventId eventId,
                                      Money totalPrice,
                                      OrderStateMachineFactory factory) {
-        OrderId orderId = OrderId.newId();
 
         return factory.create(orderId.value())
                 .map(sm -> new Order(orderId, userId, eventId, totalPrice, sm));
     }
 
-    public Mono<Order> reserve() { return sendEvent(OrderEvent.RESERVE_TICKET); }
-    public Mono<Order> startPayment() { return sendEvent(OrderEvent.START_PAYMENT); }
-    public Mono<Order> confirmPayment() { return sendEvent(OrderEvent.CONFIRM_PAYMENT); }
-    public Mono<Order> failPayment() { return sendEvent(OrderEvent.FAIL_PAYMENT); }
-    public Mono<Order> cancel() { return sendEvent(OrderEvent.CANCEL); }
-    public Mono<Order> expireReservation() { return sendEvent(OrderEvent.EXPIRE_RESERVATION); }
+    public Mono<Order> confirmInventory() {
+        return sendEvent(OrderEvent.VALIDATION_SUCCESS);
+    }
+
+    public Mono<Order> failInventory() {
+        return sendEvent(OrderEvent.VALIDATION_FAILED);
+    }
+
+    public Mono<Order> startPayment() {
+        return sendEvent(OrderEvent.START_PAYMENT);
+    }
+
+    public Mono<Order> pay() {
+        return sendEvent(OrderEvent.CONFIRM_PAYMENT);
+    }
+
+    public Mono<Order> cancel() {
+        return sendEvent(OrderEvent.CANCEL);
+    }
+
+    public Mono<Order> expire() {
+        return sendEvent(OrderEvent.EXPIRE);
+    }
 
     private Mono<Order> sendEvent(OrderEvent event) {
         return stateMachine.sendEvent(Mono.just(
-                        org.springframework.messaging.support.MessageBuilder
-                                .withPayload(event)
+                        MessageBuilder.withPayload(event)
                                 .setHeader("orderId", id.value())
                                 .build()))
                 .next()
                 .flatMap(result -> {
-                    if (result.getResultType() == org.springframework.statemachine.StateMachineEventResult.ResultType.DENIED) {
+                    if (result.getResultType() == StateMachineEventResult.ResultType.DENIED) {
                         return Mono.error(new BusinessException(
-                                ErrorCode.ORDER_EVENT_NOT_ACCEPTED.code(),
-                                "Event %s invalid for status %s".formatted(event, getStatus())
+                                "ORDER_EVENT_NOT_ACCEPTED",
+                                "El evento %s no es válido para el estado actual %s".formatted(event, getStatus())
                         ));
                     }
-
                     this.updatedAt = Instant.now();
                     return Mono.just(this);
                 });
     }
 
-    public TicketStatus getStatus() {
+    public OrderStatus getStatus() {
         return stateMachine.getState().getId();
     }
 
-    public boolean isFinal() { return getStatus().isFinalState(); }
-    public boolean isHoldingInventory() { return getStatus().isHoldingInventory(); }
+    public boolean isFinal() {
+        return getStatus().isFinalState();
+    }
 }

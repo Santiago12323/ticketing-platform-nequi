@@ -14,6 +14,7 @@ public class OrderRouter {
     public RouterFunction<ServerResponse> orderRoutes(OrderHandler handler) {
         return RouterFunctions.route()
                 .POST("/orders", handler::create)
+                .GET("/orders/{id}", handler::getStatus)
                 .build();
     }
 }
