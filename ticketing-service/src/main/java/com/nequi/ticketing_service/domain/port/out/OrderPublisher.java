@@ -8,7 +8,5 @@ import java.util.List;
 
 public interface OrderPublisher {
 
-    Mono<Boolean> publishInventoryCheck(OrderId orderId, EventId eventId, List<String> seatIds);
-
-    Mono<Void> publishOrderCreated(OrderId orderId);
+    Mono<Void> publishInventoryCheck(OrderId orderId, EventId eventId, List<String> seatIds);
 }
