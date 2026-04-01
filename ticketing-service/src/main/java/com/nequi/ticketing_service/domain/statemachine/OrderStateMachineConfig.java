@@ -29,7 +29,7 @@ public class OrderStateMachineConfig
             throws Exception {
         config
                 .withConfiguration()
-                .autoStartup(false) // aquí sí puedes desactivar el arranque automático
+                .autoStartup(false)
                 .listener(listener);
     }
 
@@ -47,8 +47,6 @@ public class OrderStateMachineConfig
     @Override
     public void configure(StateMachineTransitionConfigurer<TicketStatus, OrderEvent> transitions)
             throws Exception {
-        log.info("Configuring transitions for Ticket lifecycle");
-
         transitions
 
                 // AVAILABLE → RESERVED

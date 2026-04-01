@@ -7,11 +7,14 @@ import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.statemachine.OrderStateMachineFactory;
 import com.nequi.ticketing_service.domain.valueobject.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreateOrderUseCaseImpl implements CreateOrderUseCase {
@@ -19,6 +22,9 @@ public class CreateOrderUseCaseImpl implements CreateOrderUseCase {
     private final OrderRepository repository;
     private final OrderPublisher publisher;
     private final OrderStateMachineFactory smFactory;
+
+    @Value("${ticketing.statemachine.audit-enabled:false}")
+    private boolean auditEnabled;
 
     @Override
     public Mono<OrderId> execute(UserId userId,
@@ -29,19 +35,21 @@ public class CreateOrderUseCaseImpl implements CreateOrderUseCase {
         return Order.create(userId, eventId, totalPrice, smFactory)
                 .flatMap(order ->
                         order.reserve()
-                                .then(publisher.publishInventoryCheck(order.getId(), eventId, seatIds))
-                                .flatMap(hasInventory -> {
-                                    if (hasInventory) {
-                                        return repository.save(order, seatIds)
-                                                .flatMap(saved -> saved.startPayment()
-                                                        .then(publisher.publishOrderCreated(saved.getId()))
-                                                        .thenReturn(saved.getId()));
-                                    } else {
-                                        return order.cancel()
-                                                .then(repository.save(order, seatIds))
-                                                .thenReturn(order.getId());
-                                    }
-                                })
-                );
+                                .flatMap(initializedOrder ->
+                                        repository.save(initializedOrder, seatIds)
+                                                .flatMap(savedOrder ->
+                                                        publisher.publishInventoryCheck(savedOrder.getId(), eventId, seatIds)
+                                                                .thenReturn(savedOrder.getId())
+                                                )
+                                )
+                )
+                .doOnSuccess(id -> {
+                    if (auditEnabled) {
+                        log.info("Order {} created and queued for inventory check for User: {}",
+                                id.value(), userId.value());
+                    }
+                })
+                .doOnError(err -> log.error("Failed to create order for User: {} and Event: {}. Error: {}",
+                        userId.value(), eventId.value(), err.getMessage()));
     }
 }

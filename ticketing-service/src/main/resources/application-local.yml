@@ -1,11 +1,20 @@
+spring:
+  cloud:
+    aws:
+      region:
+        static: us-east-1
+      credentials:
+        access-key: dummy
+        secret-key: dummy
+      sqs:
+        endpoint: http://sqs.us-east-1.localhost.localstack.cloud:4566
+      dynamodb:
+        endpoint: http://localhost:8000
+
 aws:
-  region: us-east-1
-  access-key: dummy
-  secret-key: dummy
-  dynamodb:
-    endpoint: http://localhost:8000
   sqs:
-    endpoint: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/orders-queue
+    inventory-request-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-request-queue
+    inventory-response-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-response-queue
 
 ticketing:
   statemachine:
@@ -16,3 +25,4 @@ logging:
     root: INFO
     com.nequi: INFO
     org.springframework.statemachine: DEBUG
+    io.awspring.cloud.sqs: DEBUG
