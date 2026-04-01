@@ -1,4 +1,4 @@
-package com.nequi.ticketing_service.infrastructure.messaging.dto.request;
+package com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.request;
 
 import java.time.Instant;
 import java.util.List;

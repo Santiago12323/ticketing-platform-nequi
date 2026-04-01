@@ -1,18 +1,20 @@
-package com.nequi.ticketing_service.infrastructure.messaging;
+package com.nequi.ticketing_service.infrastructure.messaging.sqs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.port.out.OrderPublisher;
 import com.nequi.ticketing_service.domain.valueobject.EventId;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
-import com.nequi.ticketing_service.infrastructure.messaging.dto.request.InventoryCheckRequest;
+import com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.request.InventoryCheckRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
+import java.time.Duration;
 import java.util.List;
 
 @Slf4j
@@ -39,24 +41,38 @@ public class SqsOrderPublisher implements OrderPublisher {
                     );
                     return objectMapper.writeValueAsString(request);
                 })
-                .map(json -> SendMessageRequest.builder()
-                        .queueUrl(inventoryQueueUrl)
-                        .messageBody(json)
-                        .build())
-                .flatMap(sendMsgRequest -> Mono.fromFuture(() -> sqsClient.sendMessage(sendMsgRequest)))
+                .flatMap(json -> {
+                    SendMessageRequest sendMsgRequest = SendMessageRequest.builder()
+                            .queueUrl(inventoryQueueUrl)
+                            .messageBody(json)
+                            .messageDeduplicationId(orderId.value())
+                            .messageGroupId("InventoryGroup")
+                            .build();
+
+                    return Mono.fromFuture(() -> sqsClient.sendMessage(sendMsgRequest));
+                })
+                .retryWhen(Retry.backoff(3, Duration.ofMillis(100))
+                        .jitter(0.75)
+                        .doBeforeRetry(retrySignal -> {
+                            if (auditEnabled) {
+                                log.warn("Retrying SQS publish for order {}. Attempt: {}/3",
+                                        orderId.value(), retrySignal.totalRetries() + 1);
+                            }
+                        })
+                )
                 .doOnSuccess(response -> {
                     if (auditEnabled) {
-                        log.info("Successfully published inventory check for order {} to queue {}",
-                                orderId.value(), inventoryQueueUrl);
+                        log.info("Successfully published to SQS. Order: {}, MessageId: {}",
+                                orderId.value(), response.messageId());
                     }
                 })
                 .doOnError(e -> {
                     if (auditEnabled) {
-                        log.error("Error publishing inventory check for order {}: {}",
-                                orderId.value(), e.getMessage(), e);
+                        log.error("Permanent failure publishing order {} after retries: {}",
+                                orderId.value(), e.getMessage());
                     }
                 })
                 .then()
-                .onErrorMap(e -> new RuntimeException("Failed to publish inventory check", e));
+                .onErrorMap(e -> new RuntimeException("Failed to publish inventory check for order " + orderId.value(), e));
     }
 }

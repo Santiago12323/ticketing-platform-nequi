@@ -14,23 +14,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException ex, ServerWebExchange exchange) {
-        ErrorResponse error = ErrorResponse.of(
-                ex.getErrorCode(),
-                HttpStatus.CONFLICT.value(),
-                ex.getMessage(),
-                exchange.getRequest().getPath().value()
-        );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        return buildResponse(ex.getErrorCode(), HttpStatus.CONFLICT, ex.getMessage(), exchange);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleValidation(IllegalArgumentException ex, ServerWebExchange exchange) {
+        return buildResponse("VAL-001", HttpStatus.BAD_REQUEST, ex.getMessage(), exchange);
     }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> handleRuntime(RuntimeException ex, ServerWebExchange exchange) {
+        return buildResponse("GEN-001", HttpStatus.INTERNAL_SERVER_ERROR, "Internal system error", exchange);
+    }
+
+    private ResponseEntity<ErrorResponse> buildResponse(String code, HttpStatus status, String msg, ServerWebExchange ex) {
         ErrorResponse error = ErrorResponse.of(
-                "GEN-001",
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                ex.getMessage(),
-                exchange.getRequest().getPath().value()
+                code,
+                status.value(),
+                msg,
+                ex.getRequest().getPath().value()
         );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        return ResponseEntity.status(status).body(error);
     }
 }

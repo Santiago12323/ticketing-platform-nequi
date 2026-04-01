@@ -1,6 +1,6 @@
-package com.nequi.ticketing_service.infrastructure.messaging.dto.response;
+package com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.response;
 
-import com.nequi.ticketing_service.infrastructure.messaging.dto.enums.InventoryErrorCode;
+import com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.enums.InventoryErrorCode;
 
 import java.util.List;
 
