@@ -30,6 +30,7 @@ public class SqsInventoryResponseListener {
 
                     return processUseCase.execute(response.orderId(), response.success());
                 })
+
                 .doOnError(e -> logError("Error processing inventory SQS message", e))
                 .subscribe();
     }

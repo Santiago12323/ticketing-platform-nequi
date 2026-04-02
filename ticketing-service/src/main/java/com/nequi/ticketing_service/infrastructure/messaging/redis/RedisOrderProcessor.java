@@ -35,8 +35,9 @@ public class RedisOrderProcessor {
     private final OrderStateMachineFactory smFactory;
     private final ObjectMapper objectMapper;
 
-    @Value("${aws.redis.orders-stream}")
+    @Value("${spring.cloud.aws.redis.orders-stream}")
     private String streamKey;
+
 
     @Value("${ticketing.statemachine.audit-enabled}")
     private boolean auditEnabled;

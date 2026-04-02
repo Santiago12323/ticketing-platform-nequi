@@ -1,5 +1,4 @@
-package com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.response;
-
+package com.nequi.inventory.infrastructure.messaging.sqs.dto.response;
 
 
 public record InventoryResponse(

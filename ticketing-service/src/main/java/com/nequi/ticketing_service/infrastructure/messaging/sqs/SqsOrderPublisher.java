@@ -25,7 +25,7 @@ public class SqsOrderPublisher implements OrderPublisher {
     private final SqsAsyncClient sqsClient;
     private final ObjectMapper objectMapper;
 
-    @Value("${aws.sqs.inventory-request-queue}")
+    @Value("${spring.cloud.aws.sqs.inventory-request-queue}")
     private String inventoryQueueUrl;
 
     @Value("${ticketing.statemachine.audit-enabled:false}")

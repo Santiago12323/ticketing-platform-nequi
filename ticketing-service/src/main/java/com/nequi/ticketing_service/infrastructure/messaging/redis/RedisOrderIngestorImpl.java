@@ -27,7 +27,7 @@ public class RedisOrderIngestorImpl implements RedisOrderIngestor {
     private final ObjectMapper objectMapper;
 
     private final CacheKeyGenerator keyGenerator;
-    @Value("${aws.redis.orders-stream}")
+    @Value("${spring.cloud.aws.redis.orders-stream}")
     private String streamKey;
 
     @Override
