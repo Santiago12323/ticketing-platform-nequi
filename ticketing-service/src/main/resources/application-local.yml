@@ -19,18 +19,19 @@ spring:
         secret-key: dummy
       sqs:
         endpoint: http://sqs.us-east-1.localhost.localstack.cloud:4566
+        inventory-request-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-request-queue
+        inventory-response-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-response-queue
       dynamodb:
         endpoint: http://localhost:8000
-
-aws:
-  sqs:
-    inventory-request-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-request-queue
-    inventory-response-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-response-queue
+      redis:
+        orders-stream: orders
 
 ticketing:
+  cache:
+    ttl-minutes: 5
   statemachine:
     audit-enabled: true
-    cache-ttl-minutes: 5
+
 
 logging:
   level:

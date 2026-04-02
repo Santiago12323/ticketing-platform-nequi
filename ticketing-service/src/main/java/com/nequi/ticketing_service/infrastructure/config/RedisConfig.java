@@ -1,15 +1,17 @@
 package com.nequi.ticketing_service.infrastructure.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.data.redis.connection.stream.ObjectRecord;
+import org.springframework.data.redis.stream.StreamReceiver;
 
 @Configuration
 public class RedisConfig {
@@ -34,6 +36,7 @@ public class RedisConfig {
     }
 
     @Bean
+    @Primary
     public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(LettuceConnectionFactory factory) {
         StringRedisSerializer serializer = new StringRedisSerializer();
 
@@ -47,4 +50,14 @@ public class RedisConfig {
 
         return new ReactiveRedisTemplate<>(factory, serializationContext);
     }
+
+    @Bean
+    public StreamReceiver<String, ObjectRecord<String, String>> streamReceiver(LettuceConnectionFactory factory) {
+        return StreamReceiver.create(factory,
+                StreamReceiver.StreamReceiverOptions.builder()
+                        .targetType(String.class)
+                        .build()
+        );
+    }
+
 }

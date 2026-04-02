@@ -1,4 +1,4 @@
-package com.nequi.ticketing_service.infrastructure.config;
+package com.nequi.ticketing_service.infrastructure.config.Initializer;
 
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
 import org.springframework.boot.CommandLineRunner;

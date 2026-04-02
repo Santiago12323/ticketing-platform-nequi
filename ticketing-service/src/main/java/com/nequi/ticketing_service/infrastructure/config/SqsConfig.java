@@ -1,6 +1,5 @@
 package com.nequi.ticketing_service.infrastructure.config;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,16 +13,16 @@ import java.net.URI;
 @Configuration
 public class SqsConfig {
 
-    @Value("${aws.access-key:dummy}")
+    @Value("${spring.cloud.aws.credentials.access-key}")
     private String accessKey;
 
-    @Value("${aws.secret-key:dummy}")
+    @Value("${spring.cloud.aws.credentials.secret-key}")
     private String secretKey;
 
-    @Value("${aws.region:us-east-1}")
+    @Value("${spring.cloud.aws.region.static}")
     private String region;
 
-    @Value("${aws.sqs.endpoint}")
+    @Value("${spring.cloud.aws.sqs.endpoint}")
     private String sqsEndpoint;
 
     @Bean
@@ -31,7 +30,9 @@ public class SqsConfig {
         return SqsAsyncClient.builder()
                 .region(Region.of(region))
                 .credentialsProvider(
-                        StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey))
+                        StaticCredentialsProvider.create(
+                                AwsBasicCredentials.create(accessKey, secretKey)
+                        )
                 )
                 .endpointOverride(URI.create(sqsEndpoint))
                 .build();
