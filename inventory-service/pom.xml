@@ -20,6 +20,12 @@
 	<properties>
 		<java.version>25</java.version>
 		<aws-sdk.version>2.25.0</aws-sdk.version>
+
+		<sonar.organization>santiago12323</sonar.organization>
+		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
+		<sonar.projectKey>santiago12323_com-nequi-inventory-service</sonar.projectKey>
+		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+
 	</properties>
 
 	<repositories>
@@ -96,7 +102,12 @@
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk-dynamodb</artifactId>
-			<version>1.12.698</version>
+			<version>1.12.700</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
 		</dependency>
 
 		<dependency>
@@ -117,8 +128,6 @@
 			<version>4.0.0-M1</version>
 		</dependency>
 
-
-
 		<dependency>
 			<groupId>io.projectreactor</groupId>
 			<artifactId>reactor-test</artifactId>
@@ -129,7 +138,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-json</artifactId>
 		</dependency>
-
 	</dependencies>
 
 	<build>
@@ -156,11 +164,87 @@
 			</plugin>
 
 			<plugin>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>5.0.0.4389</version>
+			</plugin>
+
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.14</version> <executions>
+				<execution>
+					<id>prepare-agent</id>
+					<goals>
+						<goal>prepare-agent</goal>
+					</goals>
+				</execution>
+				<execution>
+					<id>report</id>
+					<phase>test</phase>
+					<goals>
+						<goal>report</goal>
+					</goals>
+					<configuration>
+						<excludes>
+							<exclude>com/nequi/inventory/domain/statemachine/machine/TicketStateMachineListener.class</exclude>
+
+							<exclude>com/nequi/inventory/domain/statemachine/config/**</exclude>
+							<exclude>com/nequi/inventory/domain/statemachine/*.class</exclude>
+							<exclude>com/nequi/inventory/domain/valueobject/**</exclude>
+							<exclude>com/nequi/inventory/domain/exception/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/mapper/**</exclude>
+
+							<exclude>com/nequi/inventory/InventoryApplication.class</exclude>
+							<exclude>com/nequi/inventory/infrastructure/config/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/messaging/sqs/dto/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/dto/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/persistence/dynamo/entity/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/persistence/mapper/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/error/**</exclude>
+						</excludes>
+					</configuration>
+				</execution>
+				<execution>
+					<id>check</id>
+					<goals>
+						<goal>check</goal>
+					</goals>
+					<configuration>
+						<rules>
+							<rule>
+								<element>BUNDLE</element>
+								<limits>
+									<limit>
+										<counter>LINE</counter>
+										<value>COVEREDRATIO</value>
+										<minimum>0.80</minimum> </limit>
+								</limits>
+							</rule>
+						</rules>
+						<excludes>
+							<exclude>com/nequi/inventory/domain/statemachine/machine/TicketStateMachineListener.class</exclude>
+							<exclude>com/nequi/inventory/domain/statemachine/config/**</exclude>
+							<exclude>com/nequi/inventory/domain/statemachine/*.class</exclude>
+							<exclude>com/nequi/inventory/domain/valueobject/**</exclude>
+							<exclude>com/nequi/inventory/domain/exception/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/mapper/**</exclude>
+							<exclude>com/nequi/inventory/InventoryApplication.class</exclude>
+							<exclude>com/nequi/inventory/infrastructure/config/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/messaging/sqs/dto/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/dto/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/persistence/dynamo/entity/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/persistence/mapper/**</exclude>
+							<exclude>com/nequi/inventory/infrastructure/web/error/**</exclude>
+						</excludes>
+					</configuration>
+				</execution>
+			</executions>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>
-
-
 </project>

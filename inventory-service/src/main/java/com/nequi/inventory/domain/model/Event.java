@@ -1,13 +1,14 @@
 package com.nequi.inventory.domain.model;
 
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.Instant;
 
 @Getter
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class Event {
 
@@ -15,13 +16,11 @@ public class Event {
     private final String name;
     private final String location;
     private final int totalCapacity;
-
     private EventStatus status;
-
     private final Instant createdAt;
     private Instant updatedAt;
 
-    public Event(String eventId, String name, String location, int totalCapacity,EventStatus eventStatus) {
+    public Event(String eventId, String name, String location, int totalCapacity, EventStatus eventStatus) {
         this.eventId = eventId;
         this.name = name;
         this.location = location;
@@ -30,6 +29,7 @@ public class Event {
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
+
     public void validateSellable() {
         if (status != EventStatus.ACTIVE) {
             throw new IllegalStateException("Event is not available for sales");
