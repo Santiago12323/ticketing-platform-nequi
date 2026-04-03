@@ -31,11 +31,18 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public Mono<Void> createEvent(EventId eventId, int capacity, String name, String location) {
-
-        return validateEventDoesNotExist(eventId)
-                .then(saveEvent(buildEvent(eventId, capacity, name, location)))
-                .thenMany(createTickets(eventId, capacity))
-                .then()
+        return eventRepository.existsById(eventId.value())
+                .flatMap(exists -> {
+                    if (exists) {
+                        return Mono.error(new BusinessException(
+                                "EVENT_ALREADY_EXISTS",
+                                "Event with id %s already exists".formatted(eventId.value())));
+                    }
+                    Event newEvent = buildEvent(eventId, capacity, name, location);
+                    return saveEvent(newEvent);
+                })
+                .flatMapMany(savedEvent -> createTickets(eventId, capacity))
+                .then() // Convertimos el Flux<Ticket> a Mono<Void>
                 .doOnSuccess(v -> logIfEnabled("Event created successfully: " + eventId.value()))
                 .doOnError(e -> log.error("Error creating event {}: {}", eventId.value(), e.getMessage()));
     }
@@ -50,18 +57,6 @@ public class EventServiceImpl implements EventService {
         );
     }
 
-    private Mono<Void> validateEventDoesNotExist(EventId eventId) {
-        return eventRepository.existsById(String.valueOf(eventId))
-                .flatMap(exists -> {
-                    if (exists) {
-                        return Mono.error(new BusinessException(
-                                "EVENT_ALREADY_EXISTS",
-                                "Event with id %s already exists".formatted(eventId.value())
-                        ));
-                    }
-                    return Mono.empty();
-                });
-    }
 
     private Mono<Event> saveEvent(Event event) {
         return eventRepository.save(event)
@@ -105,23 +100,19 @@ public class EventServiceImpl implements EventService {
     @Override
     public Mono<Event> updateEvent(EventId eventId, Event updatedEvent) {
         return eventRepository.findById(eventId)
-                .switchIfEmpty(Mono.error(new BusinessException(
-                        "EVENT_NOT_FOUND",
-                        "Event not found: " + eventId.value()
-                )))
+                .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found: " + eventId.value())))
                 .flatMap(existing -> {
-
-                    Event eventToUpdate = new Event(
+                    Event eventToSave = new Event(
                             existing.getEventId(),
                             updatedEvent.getName(),
                             updatedEvent.getLocation(),
                             updatedEvent.getTotalCapacity(),
-                            EventStatus.ACTIVE
+                            existing.getStatus(), // Mantener estado original
+                            existing.getCreatedAt(),
+                            java.time.Instant.now() // updatedAt
                     );
-
-                    return eventRepository.save(eventToUpdate);
-                })
-                .doOnSuccess(e -> logIfEnabled("Event updated: " + eventId.value()));
+                    return eventRepository.save(eventToSave);
+                });
     }
 
 

@@ -10,22 +10,11 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface EventMapper {
 
-    @Mapping(target = "eventId", source = "eventId")
-    @Mapping(target = "name", source = "name")
-    @Mapping(target = "location", source = "location")
-    @Mapping(target = "totalCapacity", source = "totalCapacity")
-    @Mapping(target = "status", source = "status")
-    @Mapping(target = "createdAt", expression = "java(event.getCreatedAt().toString())")
-    @Mapping(target = "updatedAt", expression = "java(event.getUpdatedAt().toString())")
+    @Mapping(target = "createdAt", expression = "java(event.getCreatedAt() != null ? event.getCreatedAt().toString() : null)")
+    @Mapping(target = "updatedAt", expression = "java(event.getUpdatedAt() != null ? event.getUpdatedAt().toString() : null)")
     EventEntity toEntity(Event event);
 
-    @Mapping(target = "eventId", source = "eventId")
-    @Mapping(target = "name", source = "name")
-    @Mapping(target = "location", source = "location")
-    @Mapping(target = "totalCapacity", source = "totalCapacity")
-    @Mapping(target = "status", source = "status")
-    @Mapping(target = "createdAt", expression = "java(java.time.Instant.parse(entity.getCreatedAt()))")
-    @Mapping(target = "updatedAt", expression = "java(java.time.Instant.parse(entity.getUpdatedAt()))")
+    @Mapping(target = "createdAt", expression = "java(entity.getCreatedAt() != null ? java.time.Instant.parse(entity.getCreatedAt()) : null)")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? java.time.Instant.parse(entity.getUpdatedAt()) : null)")
     Event toDomain(EventEntity entity);
-
 }

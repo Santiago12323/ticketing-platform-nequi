@@ -46,7 +46,7 @@ public class InventoryServiceImpl implements InventoryService {
                 )
 
                 .retryWhen(Retry.backoff(3, Duration.ofMillis(200))
-                        .filter(throwable -> throwable instanceof ConcurrentModificationException)
+                        .filter(throwable -> !(throwable instanceof BusinessException))
                 );
     }
     @Override
@@ -61,7 +61,9 @@ public class InventoryServiceImpl implements InventoryService {
 
                     return ticketRepository.confirmAll(eventId, ticketIds);
                 })
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(200)))
+                .retryWhen(Retry.backoff(3, Duration.ofMillis(200))
+                        .filter(throwable -> !(throwable instanceof BusinessException))
+                )
                 .then();
     }
 }

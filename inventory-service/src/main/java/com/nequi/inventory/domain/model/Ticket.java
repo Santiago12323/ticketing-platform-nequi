@@ -3,6 +3,7 @@ package com.nequi.inventory.domain.model;
 import com.nequi.inventory.domain.exception.BusinessException;
 import com.nequi.inventory.domain.statemachine.TicketEvent;
 import com.nequi.inventory.domain.statemachine.TicketStatus;
+import com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
 import lombok.EqualsAndHashCode;
@@ -31,7 +32,7 @@ public class Ticket {
     public static Mono<Ticket> create(
             TicketId ticketId,
             String eventId,
-            com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory factory
+            TicketStateMachineFactory factory
     ) {
         return factory.create(ticketId.value())
                 .map(sm -> new Ticket(ticketId, eventId, sm));

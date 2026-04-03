@@ -53,7 +53,7 @@ public class OrderUseCaseImpl implements OrderUseCase {
 
         return redisTemplate.opsForValue().get(cacheKey)
                 .flatMap(this::deserialize)
-                .switchIfEmpty(fetchFromDbAndCache(id, cacheKey))
+                .switchIfEmpty(Mono.defer(() -> fetchFromDbAndCache(id, cacheKey)))
                 .doOnError(e -> logError("Error retrieving order " + id.value(), e));
     }
 

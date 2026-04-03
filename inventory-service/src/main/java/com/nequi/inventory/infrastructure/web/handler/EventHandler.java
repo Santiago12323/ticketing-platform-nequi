@@ -6,6 +6,7 @@ import com.nequi.inventory.infrastructure.web.dto.Request.CreateEventRequest;
 import com.nequi.inventory.infrastructure.web.dto.Response.EventResponse;
 import com.nequi.inventory.infrastructure.web.mapper.EventResponseMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -28,12 +29,14 @@ public class EventHandler {
 
     public Mono<ServerResponse> getAllEvents(ServerRequest request) {
         return ServerResponse.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(
                         eventService.getAllEvents()
                                 .map(eventResponseMapper::toResponse),
                         EventResponse.class
                 );
     }
+
 
     public Mono<ServerResponse> createEvent(ServerRequest request) {
         return request.bodyToMono(CreateEventRequest.class)
