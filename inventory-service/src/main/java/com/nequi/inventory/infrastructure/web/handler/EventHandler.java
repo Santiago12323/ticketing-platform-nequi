@@ -76,6 +76,7 @@ public class EventHandler {
 
     public Mono<ServerResponse> getTicketsByEvent(ServerRequest request) {
         EventId eventId = new EventId(request.pathVariable("eventId"));
+
         return ServerResponse.ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(
@@ -87,6 +88,7 @@ public class EventHandler {
 
     public Mono<ServerResponse> getAvailableTicketsByEvent(ServerRequest request) {
         EventId eventId = new EventId(request.pathVariable("eventId"));
+
         return ServerResponse.ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(

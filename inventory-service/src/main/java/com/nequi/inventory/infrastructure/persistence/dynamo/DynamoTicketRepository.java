@@ -1,15 +1,17 @@
 package com.nequi.inventory.infrastructure.persistence.dynamo;
 
 import com.nequi.inventory.domain.exception.BusinessException;
+import com.nequi.inventory.domain.model.Event;
 import com.nequi.inventory.domain.model.Ticket;
 import com.nequi.inventory.domain.port.out.EventRepository;
 import com.nequi.inventory.domain.port.out.TicketRepository;
 import com.nequi.inventory.domain.statemachine.TicketStatus;
 import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.OrderId;
+import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryResponse;
+import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.TicketEntity;
-import com.nequi.inventory.infrastructure.persistence.factory.TicketFactory;
 import com.nequi.inventory.infrastructure.persistence.mapper.TicketEntityMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,11 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
-import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
-import software.amazon.awssdk.enhanced.dynamodb.Expression;
-import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.*;
 import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
@@ -39,7 +37,6 @@ public class DynamoTicketRepository implements TicketRepository {
 
     private final DynamoDbEnhancedAsyncClient enhancedClient;
     private final TicketEntityMapper ticketEntityMapper;
-    private final TicketFactory ticketFactory;
     private final EventRepository eventRepository;
 
     @Value("${ticketing.statemachine.audit-enabled:false}")
@@ -50,53 +47,61 @@ public class DynamoTicketRepository implements TicketRepository {
     }
 
     @Override
-    public Mono<Ticket> findById(EventId eventId, String ticketId) {
+    public Mono<Ticket> findByIdAnEventId(EventId eventId, String ticketId) {
         Key key = Key.builder()
                 .partitionValue(eventId.value())
                 .sortValue(ticketId)
                 .build();
 
         return Mono.fromFuture(() -> table().getItem(key))
-                .flatMap(entity -> {
-                    if (entity == null) {
-                        if (auditEnabled) log.warn("Ticket not found: {} for event: {}", ticketId, eventId);
-                        return Mono.empty();
-                    }
-                    return ticketFactory.fromEntity(entity);
-                });
+                .map(entity -> entity == null ? null : ticketEntityMapper.toDomain(entity));
+    }
+
+    @Override
+    public Mono<Ticket> findById(TicketId ticketId) {
+        DynamoDbAsyncIndex<TicketEntity> ticketIndex = table().index("ticketId-index");
+
+        QueryConditional queryConditional = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(ticketId.value()).build()
+        );
+
+        QueryEnhancedRequest queryRequest = QueryEnhancedRequest.builder()
+                .queryConditional(queryConditional)
+                .limit(1)
+                .build();
+
+        return Flux.from(ticketIndex.query(queryRequest))
+                .flatMapIterable(page -> page.items())
+                .next()
+                .map(ticketEntityMapper::toDomain)
+                .doOnNext(t -> log.info("[DB] Ticket encontrado: {}", t.getTicketId().value()))
+                .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket no existe en el índice")));
     }
 
     @Override
     public Mono<Ticket> save(Ticket ticket) {
+        return saveWithCondition(ticket, null);
+    }
+
+    private Mono<Ticket> saveWithCondition(Ticket ticket, TicketStatus expectedStatus) {
         TicketEntity entity = ticketEntityMapper.toEntity(ticket);
+        PutItemEnhancedRequest.Builder<TicketEntity> builder = PutItemEnhancedRequest.builder(TicketEntity.class)
+                .item(entity);
 
-        PutItemEnhancedRequest<TicketEntity> request;
-
-        if (ticket.getStatus() != TicketStatus.AVAILABLE) {
+        if (expectedStatus != null) {
             Expression condition = Expression.builder()
-                    .expression("#s = :available")
+                    .expression("#s = :expected")
                     .expressionNames(Map.of("#s", "status"))
-                    .expressionValues(Map.of(
-                            ":available", AttributeValue.builder()
-                                    .s(TicketStatus.AVAILABLE.name())
-                                    .build()))
+                    .expressionValues(Map.of(":expected", AttributeValue.builder().s(expectedStatus.name()).build()))
                     .build();
-
-            request = PutItemEnhancedRequest.<TicketEntity>builder(TicketEntity.class)
-                    .item(entity)
-                    .conditionExpression(condition)
-                    .build();
-        } else {
-            request = PutItemEnhancedRequest.<TicketEntity>builder(TicketEntity.class)
-                    .item(entity)
-                    .build();
+            builder.conditionExpression(condition);
         }
 
-        return Mono.fromFuture(() -> table().putItem(request))
+        return Mono.fromFuture(() -> table().putItem(builder.build()))
                 .thenReturn(ticket)
                 .onErrorMap(ConditionalCheckFailedException.class, e -> {
-                    if (auditEnabled) log.error("Failed to save ticket: {}", ticket.getTicketId().value());
-                    return new BusinessException("TICKET_ALREADY_RESERVED", "Ticket is no longer available or state mismatch");
+                    log.error("Conflict saving ticket {}: expected state {}", ticket.getTicketId().value(), expectedStatus);
+                    return new BusinessException("CONCURRENCY_ERROR", "Ticket state changed or invalid transition");
                 });
     }
 
@@ -104,141 +109,136 @@ public class DynamoTicketRepository implements TicketRepository {
     public Mono<InventoryResponse> reserveAll(EventId eventId, Set<String> ticketIds, OrderId orderId) {
         return eventRepository.findById(eventId)
                 .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found")))
-                .flatMap(event ->
-                        Flux.fromIterable(ticketIds)
-                                .concatMap(ticketId ->
-                                        findById(eventId, ticketId)
-                                                .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket not found")))
-                                                .flatMap(ticket -> ticket.reserve(event))
-                                                .flatMap(this::save)
-                                                .thenReturn(new Result(ticketId, true))
-                                                .onErrorResume(e -> Mono.just(new Result(ticketId, false)))
-                                )
-                                .collectList()
-                                .flatMap(results -> {
-                                    List<String> failed = results.stream()
-                                            .filter(r -> !r.success())
-                                            .map(Result::ticketId)
-                                            .toList();
-
-                                    if (!failed.isEmpty()) {
-                                        return rollbackReservations(eventId, ticketIds)
-                                                .thenReturn(InventoryResponse.failure(orderId.value(), failed));
-                                    }
-                                    return Mono.just(InventoryResponse.success(orderId.value()));
-                                })
-                );
+                .flatMap(this::ensureEventIsActive)
+                .flatMap(event -> Flux.fromIterable(ticketIds)
+                        .concatMap(id -> reserveSingleTicket(event, id))
+                        .collectList())
+                .flatMap(results -> handleBatchResults(orderId, eventId, ticketIds, results, true));
     }
 
-    private record Result(String ticketId, boolean success) {}
+    private Mono<Event> ensureEventIsActive(Event event) {
+        if (event.getStatus() != EventStatus.ACTIVE) {
+            return Mono.error(new BusinessException("EVENT_NOT_ACTIVE", "Event is not active"));
+        }
+        return Mono.just(event);
+    }
 
-    private Mono<Void> rollbackReservations(EventId eventId, Set<String> ticketIds) {
-        return Flux.fromIterable(ticketIds)
-                .concatMap(ticketId ->
-                        findById(eventId, ticketId)
-                                .flatMap(ticket -> {
-                                    if (ticket.getStatus() == TicketStatus.RESERVED) {
-                                        return ticket.cancel().flatMap(this::save);
-                                    }
-                                    return Mono.empty();
-                                })
-                                .onErrorResume(e -> {
-                                    log.error("Rollback failed for ticket {}", ticketId, e);
-                                    return Mono.empty();
-                                })
-                )
-                .then();
+    private Mono<Result> reserveSingleTicket(Event event, String ticketId) {
+        return findByIdAnEventId(event.getEventId(), ticketId)
+                .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket not found")))
+                .flatMap(ticket -> {
+                    ticket.reserve(event);
+                    return saveWithCondition(ticket, TicketStatus.AVAILABLE);
+                })
+                .map(t -> new Result(ticketId, true))
+                .onErrorResume(e -> {
+                    log.error("Failed to reserve {}: {}", ticketId, e.getMessage());
+                    return Mono.just(new Result(ticketId, false));
+                });
     }
 
     @Override
     public Mono<Void> confirmAll(EventId eventId, Set<String> ticketIds) {
         return eventRepository.findById(eventId)
                 .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found")))
-                .flatMap(event ->
-                        Flux.fromIterable(ticketIds)
-                                .concatMap(ticketId ->
-                                        findById(eventId, ticketId)
-                                                .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket not found")))
-                                                .flatMap(ticket -> ticket.confirmPayment())
-                                                .flatMap(this::save)
-                                )
-                                .collectList()
-                                .then()
-                                .onErrorResume(error ->
-                                        rollbackPayments(eventId, ticketIds)
-                                                .then(Mono.error(error))
-                                )
-                );
+                .flatMap(event -> Flux.fromIterable(ticketIds)
+                        .concatMap(id -> confirmSingleTicket(eventId, id))
+                        .collectList())
+                .flatMap(results -> handleBatchResults(null, eventId, ticketIds, results, false))
+                .then();
+    }
+
+    private Mono<Result> confirmSingleTicket(EventId eventId, String ticketId) {
+        return findByIdAnEventId(eventId, ticketId)
+                .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket not found")))
+                .flatMap(ticket -> {
+                    ticket.confirmPayment();
+                    return saveWithCondition(ticket, TicketStatus.RESERVED);
+                })
+                .map(t -> new Result(ticketId, true))
+                .onErrorResume(e -> {
+                    log.error("Failed to confirm {}: {}", ticketId, e.getMessage());
+                    return Mono.just(new Result(ticketId, false));
+                });
+    }
+
+    private Mono<InventoryResponse> handleBatchResults(OrderId orderId, EventId eventId, Set<String> ticketIds, List<Result> results, boolean isReservation) {
+        List<String> failedIds = results.stream()
+                .filter(r -> !r.success())
+                .map(Result::ticketId)
+                .toList();
+
+        String responseOrderId = orderId != null ? orderId.value() : "N/A";
+
+        if (failedIds.isEmpty()) {
+            return Mono.just(InventoryResponse.success(responseOrderId));
+        }
+
+        return (isReservation ? rollbackReservations(eventId, ticketIds) : rollbackPayments(eventId, ticketIds))
+                .thenReturn(InventoryResponse.failure(responseOrderId, failedIds));
+    }
+
+    private Mono<Void> rollbackReservations(EventId eventId, Set<String> ticketIds) {
+        return Flux.fromIterable(ticketIds)
+                .concatMap(id -> findByIdAnEventId(eventId, id)
+                        .flatMap(t -> {
+                            if (t != null && t.getStatus() == TicketStatus.RESERVED) {
+                                t.cancel();
+                                return saveWithCondition(t, TicketStatus.RESERVED);
+                            }
+                            return Mono.empty();
+                        })
+                        .onErrorResume(e -> Mono.empty()))
+                .then();
     }
 
     private Mono<Void> rollbackPayments(EventId eventId, Set<String> ticketIds) {
         return Flux.fromIterable(ticketIds)
-                .concatMap(ticketId ->
-                        findById(eventId, ticketId)
-                                .flatMap(ticket -> {
-                                    if (ticket.getStatus() == TicketStatus.SOLD) {
-                                        return ticket.failPayment().flatMap(this::save);
-                                    }
-                                    return Mono.empty();
-                                })
-                                .onErrorResume(e -> {
-                                    log.error("Rollback payment failed for ticket {}", ticketId, e);
-                                    return Mono.empty();
-                                })
-                )
+                .concatMap(id -> findByIdAnEventId(eventId, id)
+                        .flatMap(t -> {
+                            if (t != null && t.getStatus() == TicketStatus.SOLD) {
+                                t.failPayment();
+                                return saveWithCondition(t, TicketStatus.SOLD);
+                            }
+                            return Mono.empty();
+                        })
+                        .onErrorResume(e -> Mono.empty()))
                 .then();
     }
 
     @Override
     public Mono<Boolean> isAvailable(EventId eventId, String ticketId) {
-        Key key = Key.builder()
-                .partitionValue(eventId.value())
-                .sortValue(ticketId)
-                .build();
-
+        Key key = Key.builder().partitionValue(eventId.value()).sortValue(ticketId).build();
         return Mono.fromFuture(() -> table().getItem(key))
-                .map(entity -> entity != null && TicketStatus.AVAILABLE.name().equals(entity.getStatus()))
-                .defaultIfEmpty(false)
-                .doOnNext(available -> {
-                    if (auditEnabled) log.info("Availability check for ticket {}: {}", ticketId, available);
-                });
+                .map(entity -> entity != null && TicketStatus.AVAILABLE.name().equals(entity.getStatus().name()))
+                .defaultIfEmpty(false);
     }
 
     @Override
     public Flux<Ticket> findAllByEventId(EventId eventId) {
-        Key key = Key.builder()
-                .partitionValue(eventId.value())
-                .build();
-
         QueryEnhancedRequest request = QueryEnhancedRequest.builder()
-                .queryConditional(QueryConditional.keyEqualTo(key))
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(eventId.value()).build()))
                 .build();
-
         return Flux.from(table().query(request).items())
-                .flatMap(entity -> ticketFactory.fromEntity(entity));
+                .map(ticketEntityMapper::toDomain);
     }
 
     @Override
     public Flux<Ticket> findAvailableByEventId(EventId eventId) {
-        Key key = Key.builder()
-                .partitionValue(eventId.value())
-                .build();
-
         Expression filter = Expression.builder()
-                .expression("#s = :available")
+                .expression("#s = :av")
                 .expressionNames(Map.of("#s", "status"))
-                .expressionValues(Map.of(
-                        ":available", AttributeValue.builder()
-                                .s(TicketStatus.AVAILABLE.name())
-                                .build()))
+                .expressionValues(Map.of(":av", AttributeValue.builder().s(TicketStatus.AVAILABLE.name()).build()))
                 .build();
 
         QueryEnhancedRequest request = QueryEnhancedRequest.builder()
-                .queryConditional(QueryConditional.keyEqualTo(key))
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(eventId.value()).build()))
                 .filterExpression(filter)
                 .build();
 
         return Flux.from(table().query(request).items())
-                .flatMap(entity -> ticketFactory.fromEntity(entity));
+                .map(ticketEntityMapper::toDomain);
     }
+
+    private record Result(String ticketId, boolean success) {}
 }

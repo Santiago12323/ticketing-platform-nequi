@@ -19,9 +19,14 @@ spring:
         secret-key: dummy
 
       sqs:
-        endpoint: http://sqs.us-west-2.localhost.localstack.cloud:4566
+        endpoint: http://localhost:4566
         inventory-request-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-request-queue.fifo
         inventory-response-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-response-queue.fifo
+        inventory-response-dlq: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-response-dlq.fifo
+        order-ttl-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/order-ttl-queue
+        inventory-ttl-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-ttl-queue
+      sns:
+        order-expiration-topic: arn:aws:sns:us-west-2:000000000000:order-expiration-topic
 
       dynamodb:
         endpoint: http://localhost:8000

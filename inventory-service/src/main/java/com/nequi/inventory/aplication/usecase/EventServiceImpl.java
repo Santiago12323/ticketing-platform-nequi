@@ -6,7 +6,6 @@ import com.nequi.inventory.domain.model.Ticket;
 import com.nequi.inventory.domain.port.in.EventService;
 import com.nequi.inventory.domain.port.out.EventRepository;
 import com.nequi.inventory.domain.port.out.TicketRepository;
-import com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory;
 import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
@@ -17,6 +16,8 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -24,7 +25,6 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final TicketRepository ticketRepository;
-    private final TicketStateMachineFactory ticketStateMachineFactory;
 
     @Value("${ticketing.statemachine.audit-enabled:false}")
     private boolean auditEnabled;
@@ -48,6 +48,7 @@ public class EventServiceImpl implements EventService {
     }
 
     private Event buildEvent(EventId eventId, int capacity, String name, String location) {
+        // Asumiendo que tu modelo Event tiene un constructor o builder similar
         return new Event(
                 eventId,
                 name,
@@ -56,7 +57,6 @@ public class EventServiceImpl implements EventService {
                 EventStatus.ACTIVE
         );
     }
-
 
     private Mono<Event> saveEvent(Event event) {
         return eventRepository.save(event)
@@ -72,13 +72,10 @@ public class EventServiceImpl implements EventService {
     private Mono<Ticket> createSingleTicket(EventId eventId) {
         TicketId ticketId = TicketId.generate();
 
-        return Ticket.create(
-                        ticketId,
-                        eventId,
-                        ticketStateMachineFactory
-                )
-                .flatMap(ticketRepository::save)
-                .doOnSuccess(ticket -> logIfEnabled("Ticket created: " + ticket.getTicketId().value()));
+        Ticket ticket = Ticket.create(ticketId, eventId);
+
+        return ticketRepository.save(ticket)
+                .doOnSuccess(t -> logIfEnabled("Ticket created: " + t.getTicketId().value()));
     }
 
     @Override
@@ -107,14 +104,13 @@ public class EventServiceImpl implements EventService {
                             updatedEvent.getName(),
                             updatedEvent.getLocation(),
                             updatedEvent.getTotalCapacity(),
-                            existing.getStatus(), // Mantener estado original
+                            existing.getStatus(),
                             existing.getCreatedAt(),
-                            java.time.Instant.now() // updatedAt
+                            Instant.now()
                     );
                     return eventRepository.save(eventToSave);
                 });
     }
-
 
     @Override
     public Mono<Void> deleteEvent(EventId eventId) {
@@ -124,7 +120,6 @@ public class EventServiceImpl implements EventService {
                         "Event not found: " + eventId.value()
                 )))
                 .flatMap(event -> {
-
                     Event cancelledEvent = new Event(
                             event.getEventId(),
                             event.getName(),
@@ -132,7 +127,6 @@ public class EventServiceImpl implements EventService {
                             event.getTotalCapacity(),
                             EventStatus.CANCELLED
                     );
-
                     return eventRepository.save(cancelledEvent);
                 })
                 .then()
