@@ -1,0 +1,9 @@
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "private_subnet_ids" { type = list(string) }
+variable "alb_sg_id" { type = string }
+variable "ecs_tasks_sg_id" { type = string }
+variable "ecs_exec_role_arn" { type = string }
+variable "ecs_task_role_arn" { type = string }
+variable "repository_url" { type = string }
+variable "redis_password_secret_arn" { type = string }
