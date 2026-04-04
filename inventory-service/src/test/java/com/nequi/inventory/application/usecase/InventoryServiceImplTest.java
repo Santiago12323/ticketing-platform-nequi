@@ -7,6 +7,7 @@ import com.nequi.inventory.domain.port.out.EventRepository;
 import com.nequi.inventory.domain.port.out.SqsInventoryPublisher;
 import com.nequi.inventory.domain.port.out.TicketRepository;
 import com.nequi.inventory.domain.valueobject.EventId;
+import com.nequi.inventory.domain.valueobject.OrderId;
 import com.nequi.inventory.domain.valueobject.RequestId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryResponse;
@@ -47,7 +48,7 @@ class InventoryServiceImplTest {
     void shouldReserveSuccessfully() {
         // Arrange
         EventId eventId = EventId.newId();
-        RequestId requestId = new RequestId(UUID.randomUUID().toString());
+        OrderId orderId = new OrderId(UUID.randomUUID().toString());
         Set<TicketId> tickets = Set.of(TicketId.generate(), TicketId.generate());
 
         Event mockEvent = mock(Event.class);
@@ -60,14 +61,14 @@ class InventoryServiceImplTest {
         when(sqsInventoryPublisher.publishInventoryResponse(mockResponse)).thenReturn(Mono.empty());
 
         // Act
-        Mono<Void> result = inventoryService.reserve(eventId, tickets, requestId);
+        Mono<Void> result = inventoryService.reserve(eventId, tickets, orderId);
 
         // Assert
         StepVerifier.create(result)
                 .verifyComplete();
 
         verify(eventRepository).findById(eventId);
-        verify(ticketRepository).reserveAll(eq(eventId), anySet(), eq(requestId.value()));
+        verify(ticketRepository).reserveAll(eq(eventId), anySet(), eq(orderId));
         verify(sqsInventoryPublisher).publishInventoryResponse(mockResponse);
     }
 
@@ -88,7 +89,7 @@ class InventoryServiceImplTest {
         when(sqsInventoryPublisher.publishInventoryResponse(any())).thenReturn(Mono.empty());
 
         // Act
-        Mono<Void> result = inventoryService.reserve(eventId, Set.of(TicketId.generate()), requestId);
+        Mono<Void> result = inventoryService.reserve(eventId, Set.of(TicketId.generate()), OrderId.newId());
 
         // Assert
         StepVerifier.create(result)
@@ -105,7 +106,7 @@ class InventoryServiceImplTest {
         when(eventRepository.findById(eventId)).thenReturn(Mono.empty());
 
         // Act
-        Mono<Void> result = inventoryService.reserve(eventId, Set.of(), RequestId.newId());
+        Mono<Void> result = inventoryService.reserve(eventId, Set.of(), OrderId.newId());
 
         // Assert
         StepVerifier.create(result)
@@ -189,7 +190,7 @@ class InventoryServiceImplTest {
                 .when(mockEvent).validateSellable();
 
         // Act
-        Mono<Void> result = inventoryService.reserve(eventId, Set.of(TicketId.generate()),RequestId.newId());
+        Mono<Void> result = inventoryService.reserve(eventId, Set.of(TicketId.generate()), OrderId.newId());
 
         // Assert
         StepVerifier.create(result)

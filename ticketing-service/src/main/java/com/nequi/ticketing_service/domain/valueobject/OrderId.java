@@ -1,4 +1,7 @@
 package com.nequi.ticketing_service.domain.valueobject;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 import java.util.UUID;
 
 /**
@@ -21,8 +24,14 @@ public record OrderId(String value) {
         return new OrderId(UUID.randomUUID().toString());
     }
 
+    @JsonCreator
     public static OrderId of(String value) {
         return new OrderId(value);
+    }
+
+    @JsonValue
+    public String value() {
+        return value;
     }
 
     @Override

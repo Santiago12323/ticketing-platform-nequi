@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.port.in.ProcessInventoryResponseUseCase;
 import com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.response.InventoryResponse;
 import io.awspring.cloud.sqs.annotation.SqsListener;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+
 
 @Slf4j
 @Component
@@ -21,25 +23,29 @@ public class SqsInventoryResponseListener {
     @Value("${ticketing.statemachine.audit-enabled}")
     private boolean auditEnabled;
 
-    @SqsListener("${aws.sqs.inventory-response-queue}")
+    @SqsListener("${spring.cloud.aws.sqs.inventory-response-queue}")
     public void onMessage(String message) {
-        Mono.fromCallable(() -> objectMapper.readValue(message, InventoryResponse.class))
-                .flatMap(response -> {
-                    logAudit("Received inventory response for Order: {} - Success: {}",
-                            response.orderId(), response);
+        log.info("RAW LLEGÓ: {}", message);
 
-                    return processUseCase.execute(response.orderId(), response.success());
-                })
+        if (auditEnabled) {
+            log.info("[SQS AUDIT] Raw message received from inventory-response-queue: {}", message);
+        }
 
-                .doOnError(e -> logError("Error processing inventory SQS message", e))
+        Mono.defer(() -> process(message))
+                .doOnError(e -> log.error("[SQS ERROR] Failed to process inventory response: {}", e.getMessage()))
+                .onErrorResume(e -> Mono.empty())
                 .subscribe();
     }
 
-    private void logAudit(String format, Object... args) {
-        if (auditEnabled) log.info(format, args);
-    }
-
-    private void logError(String msg, Throwable e) {
-        if (auditEnabled) log.error("{}: {}", msg, e.getMessage());
+    private Mono<Void> process(String message) {
+        return Mono.fromCallable(() -> objectMapper.readValue(message, InventoryResponse.class))
+                .doOnNext(response -> {
+                    if (auditEnabled) {
+                        log.info("[SQS AUDIT] Processing InventoryResponse: OrderId={}, Success={}, FailedTickets={}",
+                                response.orderId(), response.success(), response.failedTicketIds());
+                    }
+                })
+                .flatMap(response -> processUseCase.execute(response.orderId(), response.success()))
+                .then();
     }
 }

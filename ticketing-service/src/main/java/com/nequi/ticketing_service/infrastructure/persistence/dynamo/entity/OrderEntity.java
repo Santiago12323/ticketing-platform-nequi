@@ -22,7 +22,7 @@ public class OrderEntity {
     private String currency;
     private String createdAt;
     private String updatedAt;
-    private List<String> seatIds;
+    private List<String> ticketIds;
 
     @DynamoDbPartitionKey
     public String getId() { return id; }

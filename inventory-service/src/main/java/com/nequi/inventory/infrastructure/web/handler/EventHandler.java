@@ -1,10 +1,14 @@
 package com.nequi.inventory.infrastructure.web.handler;
 
 import com.nequi.inventory.domain.port.in.EventService;
+import com.nequi.inventory.domain.port.in.InventoryService;
+import com.nequi.inventory.domain.port.in.TicketQueryService;
 import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.infrastructure.web.dto.Request.CreateEventRequest;
 import com.nequi.inventory.infrastructure.web.dto.Response.EventResponse;
+import com.nequi.inventory.infrastructure.web.dto.Response.TicketResponse;
 import com.nequi.inventory.infrastructure.web.mapper.EventResponseMapper;
+import com.nequi.inventory.infrastructure.web.mapper.TicketResponseMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -18,6 +22,9 @@ public class EventHandler {
 
     private final EventService eventService;
     private final EventResponseMapper eventResponseMapper;
+    private final TicketQueryService ticketQueryService;
+    private final TicketResponseMapper ticketResponseMapper;
+    private final InventoryService inventoryService;
 
     public Mono<ServerResponse> getEvent(ServerRequest request) {
         EventId eventId = new EventId(request.pathVariable("id"));
@@ -55,5 +62,37 @@ public class EventHandler {
 
         return eventService.deleteEvent(eventId)
                 .then(ServerResponse.noContent().build());
+    }
+
+
+
+    public Mono<ServerResponse> getTicketStatus(ServerRequest request) {
+        return ticketQueryService.getTicketStatus(
+                        request.pathVariable("eventId"),
+                        request.pathVariable("ticketId")
+                )
+                .flatMap(status -> ServerResponse.ok().bodyValue(status));
+    }
+
+    public Mono<ServerResponse> getTicketsByEvent(ServerRequest request) {
+        EventId eventId = new EventId(request.pathVariable("eventId"));
+        return ServerResponse.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(
+                        inventoryService.getTicketsByEvent(eventId)
+                                .map(ticketResponseMapper::toResponse),
+                        TicketResponse.class
+                );
+    }
+
+    public Mono<ServerResponse> getAvailableTicketsByEvent(ServerRequest request) {
+        EventId eventId = new EventId(request.pathVariable("eventId"));
+        return ServerResponse.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(
+                        inventoryService.getAvailableTicketsByEvent(eventId)
+                                .map(ticketResponseMapper::toResponse),
+                        TicketResponse.class
+                );
     }
 }

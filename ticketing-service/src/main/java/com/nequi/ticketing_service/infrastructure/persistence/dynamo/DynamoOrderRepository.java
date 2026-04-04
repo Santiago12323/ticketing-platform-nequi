@@ -14,8 +14,6 @@ import reactor.core.publisher.Mono;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 
-import java.util.List;
-
 @Slf4j
 @Repository
 public class DynamoOrderRepository implements OrderRepository {
@@ -37,8 +35,8 @@ public class DynamoOrderRepository implements OrderRepository {
     }
 
     @Override
-    public Mono<Order> save(Order order, List<String> seatIds) {
-        OrderEntity entity = mapper.toEntity(order, seatIds);
+    public Mono<Order> save(Order order) {
+        OrderEntity entity = mapper.toEntity(order);
         return Mono.fromFuture(orderTable.putItem(entity))
                 .doOnSuccess(v -> logAudit("Order {} saved in DynamoDB", order.getId().value()))
                 .thenReturn(order);

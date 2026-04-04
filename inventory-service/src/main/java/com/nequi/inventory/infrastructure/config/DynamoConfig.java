@@ -1,32 +1,44 @@
 package com.nequi.inventory.infrastructure.config;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
+
+import java.net.URI;
 
 @Configuration
 public class DynamoConfig {
 
-    @Value("${aws.dynamodb.endpoint}")
+    @Value("${spring.cloud.aws.dynamodb.endpoint}")
     private String dynamoEndpoint;
 
-    @Value("${aws.region}")
+    @Value("${spring.cloud.aws.region.static}")
     private String region;
 
+    @Value("${spring.cloud.aws.dynamodb.credentials.access-key}")
+    private String accessKey;
+
+    @Value("${spring.cloud.aws.dynamodb.credentials.secret-key}")
+    private String secretKey;
     @Bean
-    public AmazonDynamoDB amazonDynamoDB() {
-        return AmazonDynamoDBClientBuilder.standard()
-                .withEndpointConfiguration(
-                        new AwsClientBuilder.EndpointConfiguration(dynamoEndpoint, region))
+    public DynamoDbAsyncClient dynamoDbAsyncClient() {
+        return DynamoDbAsyncClient.builder()
+                .endpointOverride(URI.create(dynamoEndpoint))
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(accessKey, secretKey)))
                 .build();
     }
 
     @Bean
-    public DynamoDBMapper dynamoDBMapper(AmazonDynamoDB amazonDynamoDB) {
-        return new DynamoDBMapper(amazonDynamoDB);
+    public DynamoDbEnhancedAsyncClient dynamoDbEnhancedAsyncClient(DynamoDbAsyncClient asyncClient) {
+        return DynamoDbEnhancedAsyncClient.builder()
+                .dynamoDbClient(asyncClient)
+                .build();
     }
 }

@@ -18,12 +18,12 @@ public class ProcessInventoryResponseUseCaseImpl implements ProcessInventoryResp
     private final CacheKeyGenerator keyGenerator;
 
     @Override
-    public Mono<Void> execute(String orderId, boolean isSuccess) {
-        return repository.findById(OrderId.of(orderId))
-                .flatMap(order -> isSuccess ? order.confirmInventory() : order.cancel())
+    public Mono<Void> execute(OrderId orderId, boolean isSuccess) {
+        return repository.findById(orderId)
+                .flatMap(order -> isSuccess ? order.confirmInventory() : order.failInventory())
                 .flatMap(repository::updateStatus)
                 .flatMap(updatedOrder -> {
-                    String key = keyGenerator.generateOrderKey(orderId);
+                    String key = keyGenerator.generateOrderKey(orderId.value());
 
                     return redisTemplate.opsForValue().delete(key)
                             .thenReturn(updatedOrder);

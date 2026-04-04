@@ -2,18 +2,20 @@ package com.nequi.inventory.infrastructure.messaging.sqs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.inventory.domain.port.out.SqsInventoryPublisher;
+import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryResponse;
+import com.nequi.inventory.infrastructure.messaging.sqs.utils.MessagingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryResponse;
-
+import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
 import java.time.Duration;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -22,82 +24,65 @@ public class SqsInventoryPublisherImpl implements SqsInventoryPublisher {
 
     private final SqsAsyncClient sqsClient;
     private final ObjectMapper objectMapper;
-
-    @Value("${spring.cloud.aws.sqs.inventory-request-queue}")
-    private String inventoryRequestQueueUrl;
-
-    @Value("${aws.sqs.inventory-response-queue}")
-    private String inventoryResponseQueueUrl;
-
-    @Value("${ticketing.statemachine.audit-enabled:false}")
-    private boolean auditEnabled;
-
-    private static final int MAX_RETRIES = 3;
+    private final MessagingProperties properties;
 
     @Override
     public Mono<Void> publishInventoryResponse(InventoryResponse response) {
-
-        return sendMessage(response, inventoryResponseQueueUrl, response.orderId(), "OrderGroup")
-                .doOnSuccess(msgId ->
-                        logAudit("InventoryResponse sent -> orderId: {}, success: {}, failedTickets: {}, messageId: {}",
-                                response.orderId(),
-                                response.success(),
-                                response.failedTicketIds(),
-                                msgId)
-                )
-                .doOnError(e ->
-                        logError("Failed to publish InventoryResponse for order " + response.orderId(), e)
-                )
+        return Mono.defer(() -> buildMessage(response))
+                .flatMap(body -> sendMessage(body, response))
+                .doOnSuccess(resp -> log.info("SQS OK orderId={} messageId={}", response.orderId(), resp.messageId()))
+                .doOnError(e -> log.error("SQS FAIL orderId={}", response.orderId(), e))
+                .retryWhen(retrySpec(response.orderId()))
                 .then();
     }
 
-    private Mono<String> sendMessage(Object payload,
-                                     String queueUrl,
-                                     String dedupId,
-                                     String groupId) {
+    private Mono<String> buildMessage(InventoryResponse response) {
+        return Mono.fromSupplier(() -> {
+            try {
+                return objectMapper.writeValueAsString(response);
+            } catch (Exception e) {
+                throw new RuntimeException("Error serializing InventoryResponse for orderId=" + response.orderId(), e);
+            }
+        });
+    }
 
-        return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
+    private Mono<SendMessageResponse> sendMessage(String body, InventoryResponse response) {
+        String orderId = response.orderId();
 
-                .flatMap(json -> {
+        SendMessageRequest request = SendMessageRequest.builder()
+                .queueUrl(properties.getSqs().getResponseQueueUrl())
+                .messageBody(body)
+                .messageDeduplicationId(orderId)
+                .messageGroupId(orderId)
+                .messageAttributes(Map.of(
+                        "eventType", MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue("InventoryResponseSent")
+                                .build(),
+                        "orderId", MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue(orderId)
+                                .build()
+                ))
+                .build();
 
-                    logAudit("Sending SQS message -> queue: {}, dedupId: {}, payload: {}",
-                            queueUrl, dedupId, json);
+        return Mono.fromFuture(() -> sqsClient.sendMessage(request))
+                .doOnSubscribe(s -> log.info("Enviando InventoryResponse SQS orderId={}", orderId))
+                .doOnSuccess(resp -> log.info("SQS enviado orderId={} messageId={}", orderId, resp.messageId()))
+                .doOnError(e -> log.error("Error enviando SQS orderId={}", orderId, e));
+    }
 
-                    SendMessageRequest request = SendMessageRequest.builder()
-                            .queueUrl(queueUrl)
-                            .messageBody(json)
-                            .messageDeduplicationId(dedupId)
-                            .messageGroupId(groupId)
-                            .build();
-
-                    return Mono.fromFuture(() -> sqsClient.sendMessage(request))
-                            .map(response -> response.messageId());
-                })
-
-                .retryWhen(Retry.backoff(MAX_RETRIES, Duration.ofMillis(100))
-                        .jitter(0.75)
-                        .doBeforeRetry(signal ->
-                                logAudit("Retrying SQS send -> dedupId: {}, attempt: {}/{}",
-                                        dedupId,
-                                        signal.totalRetries() + 1,
-                                        MAX_RETRIES)
-                        )
+    private Retry retrySpec(String orderId) {
+        return Retry.backoff(
+                        properties.getRetry().getMaxAttempts(),
+                        Duration.ofMillis(properties.getRetry().getBackoffMillis())
                 )
-
-                .doOnError(e ->
-                        logError("SQS send FAILED after retries -> dedupId: " + dedupId, e)
-                );
+                .doBeforeRetry(r -> logAudit("Retry {} for orderId={}", r.totalRetries() + 1, orderId));
     }
 
-    private void logAudit(String format, Object... args) {
-        if (auditEnabled) {
-            log.info(format, args);
-        }
-    }
-
-    private void logError(String message, Throwable e) {
-        if (auditEnabled) {
-            log.error("{}: {}", message, e.getMessage(), e);
+    private void logAudit(String msg, Object... args) {
+        if (properties.getAudit().isEnabled()) {
+            log.info(msg, args);
         }
     }
 }

@@ -4,11 +4,13 @@ import com.nequi.inventory.domain.exception.BusinessException;
 import com.nequi.inventory.domain.statemachine.TicketEvent;
 import com.nequi.inventory.domain.statemachine.TicketStatus;
 import com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory;
+import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.StateMachineEventResult;
@@ -17,25 +19,40 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 
 @Getter
+@Setter
 @EqualsAndHashCode(of = "ticketId")
 @RequiredArgsConstructor
 public class Ticket {
 
     private final TicketId ticketId;
-    private final String eventId;
+    private final EventId eventId;
 
     private final StateMachine<TicketStatus, TicketEvent> stateMachine;
 
-    private final Instant createdAt = Instant.now();
-    private Instant updatedAt = createdAt;
+    private TicketStatus status;
+    private String userId;
+    private String orderId;
+    private String expiresAt;
+    private Long version;
+    private String createdAt;
+    private String updatedAt;
+
+    private final Instant createdAtInstant = Instant.now();
+    private Instant updatedAtInstant = createdAtInstant;
 
     public static Mono<Ticket> create(
             TicketId ticketId,
-            String eventId,
+            EventId eventId,
             TicketStateMachineFactory factory
     ) {
         return factory.create(ticketId.value())
-                .map(sm -> new Ticket(ticketId, eventId, sm));
+                .map(sm -> {
+                    Ticket ticket = new Ticket(ticketId, eventId, sm);
+                    ticket.setStatus(sm.getState().getId());
+                    ticket.setCreatedAt(ticket.createdAtInstant.toString());
+                    ticket.setUpdatedAt(ticket.updatedAtInstant.toString());
+                    return ticket;
+                });
     }
 
     public Mono<Ticket> reserve(Event event) {
@@ -60,9 +77,16 @@ public class Ticket {
         return sendEvent(TicketEvent.EXPIRE_RESERVATION);
     }
 
+    public Mono<Ticket> failPayment() {
+        return sendEvent(TicketEvent.FAIL_PAYMENT);
+    }
+
+    public Mono<Ticket> assignComplimentary(Event event) {
+        validateEvent(event);
+        return sendEvent(TicketEvent.ASSIGN_COMPLIMENTARY);
+    }
 
     private Mono<Ticket> sendEvent(TicketEvent event) {
-
         return stateMachine.sendEvent(Mono.just(
                         MessageBuilder.withPayload(event)
                                 .setHeader("ticketId", ticketId.value())
@@ -77,7 +101,9 @@ public class Ticket {
                         ));
                     }
 
-                    this.updatedAt = Instant.now();
+                    this.updatedAtInstant = Instant.now();
+                    this.updatedAt = updatedAtInstant.toString();
+                    this.status = stateMachine.getState().getId();
                     return Mono.just(this);
                 });
     }
@@ -92,21 +118,11 @@ public class Ticket {
         }
     }
 
-
     public TicketStatus getStatus() {
         return stateMachine.getState().getId();
     }
 
     public boolean isFinal() {
         return getStatus().isFinalState();
-    }
-
-    public Mono<Ticket> failPayment() {
-        return sendEvent(TicketEvent.FAIL_PAYMENT);
-    }
-
-    public Mono<Ticket> assignComplimentary(Event event) {
-        validateEvent(event);
-        return sendEvent(TicketEvent.ASSIGN_COMPLIMENTARY);
     }
 }

@@ -9,9 +9,6 @@ import org.mapstruct.Mapping;
 public interface TicketEntityMapper {
 
     @Mapping(target = "ticketId", expression = "java(ticket.getTicketId().value())")
-    @Mapping(target = "eventId", expression = "java(ticket.getEventId())")
-    @Mapping(target = "status", expression = "java(ticket.getStatus())")
-    @Mapping(target = "createdAt", expression = "java(ticket.getCreatedAt().toString())")
-    @Mapping(target = "updatedAt", expression = "java(ticket.getUpdatedAt().toString())")
+    @Mapping(target = "eventId",  expression = "java(ticket.getEventId().value())")
     TicketEntity toEntity(Ticket ticket);
 }

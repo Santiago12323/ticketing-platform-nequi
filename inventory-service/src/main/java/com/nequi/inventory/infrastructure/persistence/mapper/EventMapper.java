@@ -2,19 +2,19 @@ package com.nequi.inventory.infrastructure.persistence.mapper;
 
 import com.nequi.inventory.domain.model.Event;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventEntity;
-import com.nequi.inventory.infrastructure.web.dto.Response.EventResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-
 
 @Mapper(componentModel = "spring")
 public interface EventMapper {
 
-    @Mapping(target = "createdAt", expression = "java(event.getCreatedAt() != null ? event.getCreatedAt().toString() : null)")
-    @Mapping(target = "updatedAt", expression = "java(event.getUpdatedAt() != null ? event.getUpdatedAt().toString() : null)")
+    @Mapping(target = "eventId",   expression = "java(event.getEventId().value())")
+    @Mapping(target = "createdAt", source = "createdAt")
+    @Mapping(target = "updatedAt", source = "updatedAt")
     EventEntity toEntity(Event event);
 
-    @Mapping(target = "createdAt", expression = "java(entity.getCreatedAt() != null ? java.time.Instant.parse(entity.getCreatedAt()) : null)")
-    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? java.time.Instant.parse(entity.getUpdatedAt()) : null)")
+    @Mapping(target = "eventId",   expression = "java(com.nequi.inventory.domain.valueobject.EventId.of(entity.getEventId()))")
+    @Mapping(target = "createdAt", source = "createdAt")
+    @Mapping(target = "updatedAt", source = "updatedAt")
     Event toDomain(EventEntity entity);
 }
