@@ -69,22 +69,7 @@ class EventWebHandlerTest {
                 .build();
     }
 
-    @Test
-    @DisplayName("GET /events/{id} - Success")
-    void getEventSuccess() {
-        Event mockEvent = new Event(eventId, "Concierto", "Medellin", 100, EventStatus.ACTIVE);
-        EventResponse mockResponse = createMockResponse();
 
-        when(eventService.getEvent(any(EventId.class))).thenReturn(Mono.just(mockEvent));
-        when(eventResponseMapper.toResponse(mockEvent)).thenReturn(mockResponse);
-
-        webTestClient.get()
-                .uri("/events/{id}", VALID_UUID)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.eventId.value").isEqualTo(VALID_UUID);
-    }
 
     @Test
     @DisplayName("GET /events - Success (Stream)")

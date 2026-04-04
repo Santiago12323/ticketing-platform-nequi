@@ -10,4 +10,6 @@ public interface OrderUseCase {
     Mono<OrderId> create(UserId userId, EventId eventId, Money totalPrice, List<String> seatIds);
 
     Mono<Order> getById(OrderId id);
+
+    Mono<Void> expireOrder(OrderId orderId);
 }

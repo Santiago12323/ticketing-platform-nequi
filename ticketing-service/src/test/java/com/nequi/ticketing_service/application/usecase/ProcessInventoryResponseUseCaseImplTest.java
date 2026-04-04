@@ -15,8 +15,6 @@ import org.springframework.data.redis.core.ReactiveValueOperations;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.UUID;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -39,20 +37,18 @@ class ProcessInventoryResponseUseCaseImplTest {
     @InjectMocks
     private ProcessInventoryResponseUseCaseImpl processInventoryResponseUseCase;
 
-    private final OrderId VALID_ORDER_ID = OrderId.newId();
-    private final String CACHE_KEY = "order:cache:" + VALID_ORDER_ID;
+    private final String RAW_ID = "550e8400-e29b-41d4-a716-446655440000";
+    private final OrderId VALID_ORDER_ID = OrderId.of(RAW_ID);
+    private final String CACHE_KEY = "order:cache:" + RAW_ID;
 
     @Test
     @DisplayName("Should confirm order and delete cache when inventory is success")
     void executeSuccessPath() {
         // Arrange
         Order orderMock = mock(Order.class);
-        when(repository.findById(any(OrderId.class))).thenReturn(Mono.just(orderMock));
-
-        when(orderMock.confirmInventory()).thenReturn(Mono.just(orderMock));
+        when(repository.findById(VALID_ORDER_ID)).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
 
-        // Mocking Redis
         when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.delete(CACHE_KEY)).thenReturn(Mono.just(true));
@@ -61,8 +57,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, true);
 
         // Assert
-        StepVerifier.create(result)
-                .verifyComplete();
+        StepVerifier.create(result).verifyComplete();
 
         verify(orderMock).confirmInventory();
         verify(repository).updateStatus(orderMock);
@@ -70,13 +65,11 @@ class ProcessInventoryResponseUseCaseImplTest {
     }
 
     @Test
-    @DisplayName("Should cancel order and delete cache when inventory fails")
+    @DisplayName("Should fail order and delete cache when inventory fails")
     void executeFailurePath() {
         // Arrange
         Order orderMock = mock(Order.class);
-        when(repository.findById(any(OrderId.class))).thenReturn(Mono.just(orderMock));
-
-        when(orderMock.cancel()).thenReturn(Mono.just(orderMock));
+        when(repository.findById(VALID_ORDER_ID)).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
 
         when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
@@ -87,11 +80,9 @@ class ProcessInventoryResponseUseCaseImplTest {
         Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, false);
 
         // Assert
-        StepVerifier.create(result)
-                .verifyComplete();
+        StepVerifier.create(result).verifyComplete();
 
-        verify(orderMock).cancel();
-        verify(orderMock, never()).confirmInventory();
+        verify(orderMock).failInventory();
         verify(repository).updateStatus(orderMock);
     }
 
@@ -100,9 +91,7 @@ class ProcessInventoryResponseUseCaseImplTest {
     void shouldFailWhenDbUpdateFails() {
         // Arrange
         Order orderMock = mock(Order.class);
-        when(repository.findById(any(OrderId.class))).thenReturn(Mono.just(orderMock));
-        when(orderMock.confirmInventory()).thenReturn(Mono.just(orderMock));
-
+        when(repository.findById(VALID_ORDER_ID)).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(any())).thenReturn(Mono.error(new RuntimeException("DynamoDB Down")));
 
         // Act
@@ -113,6 +102,7 @@ class ProcessInventoryResponseUseCaseImplTest {
                 .expectError(RuntimeException.class)
                 .verify();
 
+        verify(orderMock).confirmInventory();
         verify(valueOperations, never()).delete(anyString());
     }
 }

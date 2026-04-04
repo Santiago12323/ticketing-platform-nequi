@@ -20,4 +20,6 @@ public interface InventoryService {
     Flux<Ticket> getTicketsByEvent(EventId eventId);
 
     Flux<Ticket> getAvailableTicketsByEvent(EventId eventId);
+
+    Mono<Void> releaseReservedStock(OrderId orderId, Set<TicketId> ticketIds);
 }

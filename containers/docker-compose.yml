@@ -28,14 +28,14 @@ services:
     container_name: localstack
     ports:
       - "4566:4566"
-      - "4571:4571"
     environment:
-      - SERVICES=sqs
+      - SERVICES=sqs,sns
       - DEBUG=1
+      - AWS_DEFAULT_REGION=us-west-2
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
-      - AWS_REGION=us-west-2
       - LOCALSTACK_AUTH_TOKEN=ls-cUBI6223-vihE-3866-feTI-lOwuyEWIf5ed
     volumes:
       - ./localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./aws-queues-setup.sh:/etc/localstack/init/ready.d/aws-queues-setup.sh

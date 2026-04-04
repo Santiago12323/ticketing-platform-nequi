@@ -12,34 +12,34 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SqsInventoryCheckListener {
+public class SqsListenerImpl {
 
     private final InventoryService inventoryService;
     private final ObjectMapper objectMapper;
     private final IdempotencyService idempotencyService;
+    private final SqsAsyncClient sqsAsyncClient;
 
     @Value("${statemachine.audit-enabled:false}")
     private boolean auditEnabled;
 
+    @Value("${spring.cloud.aws.sqs.inventory-request-dlq}")
+    private String inventoryRequestDlqUrl;
+
     @SqsListener("${spring.cloud.aws.sqs.inventory-request-queue}")
-    public void onMessage(String message) {
-
-        if (auditEnabled) {
-            log.info("[SQS AUDIT] Raw message received from inventory-request-queue: {}", message);
-        }
-
-        Mono.defer(() -> process(message))
-                .doOnError(e -> log.error("[SQS ERROR] Failed to process message: {}", e.getMessage()))
-                .onErrorResume(e -> Mono.empty())
-                .subscribe();
+    public CompletableFuture<Void> onMessage(String message) {
+        return Mono.defer(() -> process(message))
+                .doOnError(e -> log.error("[SQS ERROR] Failed to process inventory request: {}", e.getMessage()))
+                .onErrorResume(e -> sendToDlq(message).then(Mono.empty()))
+                .toFuture();
     }
 
     private Mono<Void> process(String message) {
@@ -55,23 +55,32 @@ public class SqsInventoryCheckListener {
                 .then();
     }
 
+    private Mono<Void> sendToDlq(String rawMessage) {
+        log.warn("[SQS DLQ] Desviando petición corrupta a: {}", inventoryRequestDlqUrl);
+
+        return Mono.fromCompletionStage(() ->
+                        sqsAsyncClient.sendMessage(b -> b
+                                .queueUrl(inventoryRequestDlqUrl)
+                                .messageBody(rawMessage)
+                                .messageGroupId("inventory-request-errors")
+                                .messageDeduplicationId("err-" + rawMessage.hashCode() + "-" + System.currentTimeMillis())
+                        )
+                )
+                .doOnSuccess(res -> log.info("[SQS DLQ] Petición enviada a DLQ correctamente"))
+                .doOnError(err -> log.error("[SQS DLQ FATAL] Error enviando a DLQ: {}", err.getMessage()))
+                .then();
+    }
+
     private Mono<Void> handle(InventoryCommand cmd) {
         return idempotencyService.tryProcess(cmd.orderId())
                 .flatMap(isNew -> {
                     if (Boolean.TRUE.equals(isNew)) {
-                        return inventoryService.reserve(
-                                cmd.eventId(),
-                                cmd.tickets(),
-                                cmd.orderId()
-                        );
+                        return inventoryService.reserve(cmd.eventId(), cmd.tickets(), cmd.orderId());
                     } else {
-                        if (auditEnabled) {
-                            log.warn("[SQS AUDIT] Skipping duplicate message for OrderId: {}", cmd.orderId());
-                        }
+                        if (auditEnabled) log.warn("[SQS AUDIT] Skipping duplicate: {}", cmd.orderId());
                         return Mono.empty();
                     }
-                })
-                .then();
+                }).then();
     }
 
     private Mono<InventoryCommand> mapToCommand(InventoryCheckRequest request) {

@@ -39,7 +39,7 @@ class TicketQueryServiceImplTest {
     void shouldReturnTicketSuccessfully() {
         // Arrange
         Ticket mockTicket = mock(Ticket.class);
-        when(ticketRepository.findById(any(EventId.class), eq(VALID_TICKET_ID)))
+        when(ticketRepository.findByIdAnEventId(any(EventId.class), eq(VALID_TICKET_ID)))
                 .thenReturn(Mono.just(mockTicket));
 
         // Act
@@ -50,14 +50,14 @@ class TicketQueryServiceImplTest {
                 .expectNext(mockTicket)
                 .verifyComplete();
 
-        verify(ticketRepository).findById(argThat(id -> id.value().equals(VALID_EVENT_ID)), eq(VALID_TICKET_ID));
+        verify(ticketRepository).findByIdAnEventId(argThat(id -> id.value().equals(VALID_EVENT_ID)), eq(VALID_TICKET_ID));
     }
 
     @Test
     @DisplayName("Should throw BusinessException when ticket is not found")
     void shouldFailGetTicketWhenNotFound() {
         // Arrange
-        when(ticketRepository.findById(any(EventId.class), anyString()))
+        when(ticketRepository.findByIdAnEventId(any(EventId.class), anyString()))
                 .thenReturn(Mono.empty());
 
         // Act
@@ -76,7 +76,7 @@ class TicketQueryServiceImplTest {
         Ticket mockTicket = mock(Ticket.class);
         when(mockTicket.getStatus()).thenReturn(TicketStatus.SOLD);
 
-        when(ticketRepository.findById(any(EventId.class), eq(VALID_TICKET_ID)))
+        when(ticketRepository.findByIdAnEventId(any(EventId.class), eq(VALID_TICKET_ID)))
                 .thenReturn(Mono.just(mockTicket));
 
         // Act
@@ -92,7 +92,7 @@ class TicketQueryServiceImplTest {
     @DisplayName("Should throw BusinessException when requesting status of non-existent ticket")
     void shouldFailGetStatusWhenNotFound() {
         // Arrange
-        when(ticketRepository.findById(any(EventId.class), anyString()))
+        when(ticketRepository.findByIdAnEventId(any(EventId.class), anyString()))
                 .thenReturn(Mono.empty());
 
         // Act
@@ -109,7 +109,7 @@ class TicketQueryServiceImplTest {
     @DisplayName("Should propagate infrastructure error if repository fails")
     void shouldPropagateInfrastructureError() {
         // Arrange
-        when(ticketRepository.findById(any(EventId.class), anyString()))
+        when(ticketRepository.findByIdAnEventId(any(EventId.class), anyString()))
                 .thenReturn(Mono.error(new RuntimeException("DynamoDB Connection Timeout")));
 
         // Act

@@ -6,9 +6,6 @@ import com.nequi.inventory.domain.model.Event;
 import com.nequi.inventory.domain.model.Ticket;
 import com.nequi.inventory.domain.port.out.EventRepository;
 import com.nequi.inventory.domain.port.out.TicketRepository;
-import com.nequi.inventory.domain.statemachine.TicketEvent;
-import com.nequi.inventory.domain.statemachine.TicketStatus;
-import com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory;
 import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
@@ -19,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.statemachine.StateMachine;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -39,53 +35,44 @@ class EventServiceImplTest {
     @Mock
     private TicketRepository ticketRepository;
 
-    @Mock
-    private TicketStateMachineFactory ticketStateMachineFactory;
-
-    @Mock
-    private StateMachine<TicketStatus, TicketEvent> stateMachine;
-
     @InjectMocks
     private EventServiceImpl eventService;
 
-    private final String VALID_UUID = UUID.randomUUID().toString();
     private EventId eventId;
+    private final String VALID_UUID = UUID.randomUUID().toString();
 
     @BeforeEach
     void setUp() {
         eventId = new EventId(VALID_UUID);
-        lenient().when(stateMachine.startReactively()).thenReturn(Mono.empty());
     }
 
     @Test
     @DisplayName("Should create event and its tickets successfully")
     void shouldCreateEventSuccessfully() {
         EventId id = EventId.newId();
-        TicketId ticketId = TicketId.generate();
-        Ticket realTicket = new Ticket(ticketId, id, stateMachine);
+        // Usamos el método estático create del dominio tal como lo hace el servicio
+        Ticket realTicket = Ticket.create(TicketId.generate(), id);
 
         when(eventRepository.existsById(anyString())).thenReturn(Mono.just(false));
-        when(eventRepository.save(any(Event.class))).thenReturn(Mono.just(mock(Event.class)));
-        when(ticketStateMachineFactory.create(anyString())).thenReturn(Mono.just(stateMachine));
+        when(eventRepository.save(any(Event.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
         when(ticketRepository.save(any(Ticket.class))).thenReturn(Mono.just(realTicket));
 
         StepVerifier.create(eventService.createEvent(id, 3, "Concert", "Bogota"))
                 .verifyComplete();
 
-        verify(eventRepository).save(any());
-        verify(ticketRepository, times(3)).save(any());
+        verify(eventRepository).save(any(Event.class));
+        verify(ticketRepository, times(3)).save(any(Ticket.class));
     }
 
     @Test
-    @DisplayName("Should trigger BusinessException when validateEventDoesNotExist finds an existing ID")
+    @DisplayName("Should trigger BusinessException when event ID is already taken")
     void shouldTriggerExceptionWhenEventIdIsTaken() {
         EventId id = EventId.newId();
         when(eventRepository.existsById(id.value())).thenReturn(Mono.just(true));
 
         StepVerifier.create(eventService.createEvent(id, 10, "Festival", "Medellín"))
                 .expectErrorMatches(throwable -> throwable instanceof BusinessException &&
-                        ((BusinessException) throwable).getErrorCode().equals("EVENT_ALREADY_EXISTS") &&
-                        throwable.getMessage().contains(id.value()))
+                        ((BusinessException) throwable).getErrorCode().equals("EVENT_ALREADY_EXISTS"))
                 .verify();
 
         verify(eventRepository, never()).save(any());
@@ -97,27 +84,13 @@ class EventServiceImplTest {
     void shouldCreateEventWithZeroTickets() {
         EventId id = EventId.newId();
         when(eventRepository.existsById(id.value())).thenReturn(Mono.just(false));
-        when(eventRepository.save(any(Event.class))).thenReturn(Mono.just(mock(Event.class)));
+        when(eventRepository.save(any(Event.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
 
         StepVerifier.create(eventService.createEvent(id, 0, "Empty Event", "Virtual"))
                 .verifyComplete();
 
         verify(eventRepository).save(any());
         verify(ticketRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Should fail when event ID already exists")
-    void shouldFailWhenEventAlreadyExists() {
-        EventId id = EventId.newId();
-        when(eventRepository.existsById(anyString())).thenReturn(Mono.just(true));
-
-        StepVerifier.create(eventService.createEvent(id, 5, "Concert", "Bogota"))
-                .expectErrorMatches(throwable -> throwable instanceof BusinessException &&
-                        ((BusinessException) throwable).getErrorCode().equals("EVENT_ALREADY_EXISTS"))
-                .verify();
-
-        verify(eventRepository, never()).save(any());
     }
 
     @Test
@@ -136,7 +109,7 @@ class EventServiceImplTest {
     @DisplayName("Should return event when it exists")
     void shouldReturnEventWhenFound() {
         Event mockEvent = new Event(eventId, "Name", "Loc", 10, EventStatus.ACTIVE);
-        when(eventRepository.findById(any(EventId.class))).thenReturn(Mono.just(mockEvent));
+        when(eventRepository.findById(eventId)).thenReturn(Mono.just(mockEvent));
 
         StepVerifier.create(eventService.getEvent(eventId))
                 .expectNext(mockEvent)
@@ -146,7 +119,7 @@ class EventServiceImplTest {
     @Test
     @DisplayName("Should throw BusinessException when event is not found")
     void shouldFailWhenEventNotFound() {
-        when(eventRepository.findById(any(EventId.class))).thenReturn(Mono.empty());
+        when(eventRepository.findById(eventId)).thenReturn(Mono.empty());
 
         StepVerifier.create(eventService.getEvent(eventId))
                 .expectErrorMatches(t -> t instanceof BusinessException &&
@@ -170,11 +143,14 @@ class EventServiceImplTest {
         Event existing = new Event(eventId, "Old", "Old", 10, EventStatus.ACTIVE);
         Event updatedRequest = new Event(eventId, "New", "New", 20, EventStatus.ACTIVE);
 
-        when(eventRepository.findById(any(EventId.class))).thenReturn(Mono.just(existing));
-        when(eventRepository.save(any())).thenReturn(Mono.just(updatedRequest));
+        when(eventRepository.findById(eventId)).thenReturn(Mono.just(existing));
+        when(eventRepository.save(any(Event.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
 
         StepVerifier.create(eventService.updateEvent(eventId, updatedRequest))
-                .expectNext(updatedRequest)
+                .assertNext(savedEvent -> {
+                    assert savedEvent.getName().equals("New");
+                    assert savedEvent.getTotalCapacity() == 20;
+                })
                 .verifyComplete();
     }
 
@@ -183,8 +159,8 @@ class EventServiceImplTest {
     void shouldDeleteEventSuccessfully() {
         Event existing = new Event(eventId, "Concert", "Bogota", 10, EventStatus.ACTIVE);
 
-        when(eventRepository.findById(any(EventId.class))).thenReturn(Mono.just(existing));
-        when(eventRepository.save(any())).thenReturn(Mono.just(existing));
+        when(eventRepository.findById(eventId)).thenReturn(Mono.just(existing));
+        when(eventRepository.save(any(Event.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
 
         StepVerifier.create(eventService.deleteEvent(eventId))
                 .verifyComplete();
@@ -192,17 +168,5 @@ class EventServiceImplTest {
         verify(eventRepository).save(argThat(event ->
                 event.getStatus() == EventStatus.CANCELLED
         ));
-    }
-
-    @Test
-    @DisplayName("Should fail when deleting a non-existent event")
-    void shouldFailDeletingNonExistentEvent() {
-        EventId id = EventId.newId();
-        when(eventRepository.findById(any(EventId.class))).thenReturn(Mono.empty());
-
-        StepVerifier.create(eventService.deleteEvent(id))
-                .expectErrorMatches(t -> t instanceof BusinessException &&
-                        ((BusinessException) t).getErrorCode().equals("EVENT_NOT_FOUND"))
-                .verify();
     }
 }

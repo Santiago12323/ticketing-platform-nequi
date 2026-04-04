@@ -17,7 +17,7 @@ public class TicketQueryServiceImpl implements TicketQueryService {
 
     @Override
     public Mono<Ticket> getTicket(String eventId, String ticketId) {
-        return ticketRepository.findById(EventId.of(eventId), ticketId)
+        return ticketRepository.findByIdAnEventId(EventId.of(eventId), ticketId)
                 .switchIfEmpty(Mono.error(new BusinessException(
                         "TICKET_NOT_FOUND",
                         "Ticket not found"
@@ -26,7 +26,7 @@ public class TicketQueryServiceImpl implements TicketQueryService {
 
     @Override
     public Mono<String> getTicketStatus(String eventId, String ticketId) {
-        return ticketRepository.findById(EventId.of(eventId), ticketId)
+        return ticketRepository.findByIdAnEventId(EventId.of(eventId), ticketId)
                 .map(ticket -> ticket.getStatus().name())
                 .switchIfEmpty(Mono.error(new BusinessException(
                         "TICKET_NOT_FOUND",

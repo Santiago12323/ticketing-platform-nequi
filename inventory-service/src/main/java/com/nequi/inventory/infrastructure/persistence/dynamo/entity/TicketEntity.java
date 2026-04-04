@@ -29,6 +29,7 @@ public class TicketEntity {
     @DynamoDbAttribute("eventId")
     public String getEventId() { return eventId; }
 
+    @DynamoDbSecondaryPartitionKey(indexNames = "ticketId-index")
     @DynamoDbSortKey
     @DynamoDbAttribute("ticketId")
     public String getTicketId() { return ticketId; }
