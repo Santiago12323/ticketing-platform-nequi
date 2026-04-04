@@ -3,6 +3,7 @@ package com.nequi.inventory.infrastructure.persistence.factory;
 import com.nequi.inventory.domain.model.Ticket;
 import com.nequi.inventory.domain.statemachine.TicketStatus;
 import com.nequi.inventory.domain.statemachine.machine.TicketStateMachineFactory;
+import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.TicketEntity;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
@@ -38,7 +39,7 @@ public class TicketFactory {
                         .then(sm.startReactively())
                         .thenReturn(new Ticket(
                                 id,
-                                entity.getEventId(),
+                                EventId.of(entity.getEventId()),
                                 sm
                         ))
                 );

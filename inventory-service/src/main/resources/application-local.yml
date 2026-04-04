@@ -1,22 +1,59 @@
 spring:
-  application:
-    name: ticketing-service
+  cloud:
+    aws:
+      region:
+        static: us-west-2
+      credentials:
+        access-key: dummy
+        secret-key: dummy
+      sqs:
+        endpoint: http://sqs.us-west-2.localhost.localstack.cloud:4566
+        inventory-request-queue: inventory-request-queue.fifo
+        inventory-response-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-response-queue.fifo
+      dynamodb:
+        endpoint: http://localhost:8000
+        idempotency-table: Idempotency
+        idempotency-ttl-seconds: 3600
+        credentials:
+          access-key: dummy
+          secret-key: dummy
+      redis:
+        orders-stream: orders
+        host: localhost
+        port: 6379
+        password: SuperSecret123
+        lettuce:
+          pool:
+            max-active: 8
+            max-idle: 8
+            max-wait: -1ms
 
-  redis:
-    host: localhost
-    port: 6379
-    password: SuperSecret123
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: SuperSecret123
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          max-wait: -1ms
 
-aws:
-  region: us-east-1
-  access-key: dummy
-  secret-key: dummy
-  dynamodb:
-    endpoint: http://localhost:8000
-  sqs:
-    endpoint: http://localhost:4566
+app:
+  messaging:
+    sqs:
+      inventory-queue-url: ${spring.cloud.aws.sqs.inventory-request-queue}
+      response-queue-url: ${spring.cloud.aws.sqs.inventory-response-queue}
+      message-group-id: order
+    retry:
+      max-attempts: 3
+      backoff-millis: 100
+    audit:
+      enabled: ${ticketing.statemachine.audit-enabled:false}
 
 ticketing:
+  cache:
+    ttl-minutes: 5
   statemachine:
     audit-enabled: true
 
@@ -25,3 +62,4 @@ logging:
     root: INFO
     com.nequi: INFO
     org.springframework.statemachine: DEBUG
+    org.springframework.data.redis: DEBUG

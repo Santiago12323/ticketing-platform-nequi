@@ -39,7 +39,7 @@ class ProcessInventoryResponseUseCaseImplTest {
     @InjectMocks
     private ProcessInventoryResponseUseCaseImpl processInventoryResponseUseCase;
 
-    private final String VALID_ORDER_ID = UUID.randomUUID().toString();
+    private final OrderId VALID_ORDER_ID = OrderId.newId();
     private final String CACHE_KEY = "order:cache:" + VALID_ORDER_ID;
 
     @Test
@@ -53,7 +53,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
 
         // Mocking Redis
-        when(keyGenerator.generateOrderKey(VALID_ORDER_ID)).thenReturn(CACHE_KEY);
+        when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.delete(CACHE_KEY)).thenReturn(Mono.just(true));
 
@@ -79,7 +79,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         when(orderMock.cancel()).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
 
-        when(keyGenerator.generateOrderKey(VALID_ORDER_ID)).thenReturn(CACHE_KEY);
+        when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.delete(CACHE_KEY)).thenReturn(Mono.just(true));
 

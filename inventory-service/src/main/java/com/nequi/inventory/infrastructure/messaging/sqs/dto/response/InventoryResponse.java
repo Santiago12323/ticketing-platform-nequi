@@ -1,10 +1,12 @@
 package com.nequi.inventory.infrastructure.messaging.sqs.dto.response;
 
 
+import java.util.List;
+
 public record InventoryResponse(
         String orderId,
         boolean success,
-        java.util.List<String> failedTicketIds
+        List<String> failedTicketIds
 ) {
     public static InventoryResponse success(String orderId) {
         return new InventoryResponse(orderId, true, java.util.List.of());

@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> handleRuntime(RuntimeException ex, ServerWebExchange exchange) {
-        return buildResponse("GEN-001", HttpStatus.INTERNAL_SERVER_ERROR, "Internal system error", exchange);
+        return buildResponse(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, "Internal system error", exchange);
     }
 
     private ResponseEntity<ErrorResponse> buildResponse(String code, HttpStatus status, String msg, ServerWebExchange ex) {

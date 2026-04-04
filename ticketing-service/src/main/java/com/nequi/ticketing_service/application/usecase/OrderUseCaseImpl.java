@@ -74,7 +74,7 @@ public class OrderUseCaseImpl implements OrderUseCase {
 
     private Mono<Void> saveToCache(String key, Order order) {
         return Mono.fromCallable(() -> {
-                    OrderEntity entity = mapper.toEntity(order, List.of());
+                    OrderEntity entity = mapper.toEntity(order);
                     return objectMapper.writeValueAsString(entity);
                 })
                 .flatMap(json -> redisTemplate.opsForValue()

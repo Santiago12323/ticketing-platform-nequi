@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.util.Currency;
+import java.util.List;
 
 @Component
 public class OrderFactory {
@@ -22,6 +23,7 @@ public class OrderFactory {
     }
 
     public Mono<Order> fromEntity(OrderEntity entity) {
+
         OrderId id = OrderId.of(entity.getId());
         UserId userId = UserId.of(entity.getUserId());
         EventId eventId = EventId.of(entity.getEventId());
@@ -31,21 +33,34 @@ public class OrderFactory {
                 Currency.getInstance(entity.getCurrency())
         );
 
+        List<TicketId> ticketIds = entity.getTicketIds() == null
+                ? List.of()
+                : entity.getTicketIds().stream()
+                .map(TicketId::of)
+                .toList();
+
         return smFactory.create(id.value())
-                .flatMap(sm -> sm.stopReactively()
-                        .then(Mono.defer(() -> {
-                            sm.getStateMachineAccessor().doWithAllRegions(access ->
-                                    access.resetStateMachineReactively(
-                                            new DefaultStateMachineContext<>(
-                                                    OrderStatus.valueOf(entity.getStatus()),
-                                                    null, null, null
-                                            )
-                                    ).subscribe()
-                            );
-                            return Mono.empty();
-                        }))
-                        .then(sm.startReactively())
-                        .thenReturn(new Order(id, userId, eventId, totalPrice, sm))
+                .flatMap(sm ->
+                        sm.stopReactively()
+                                .then(
+                                        sm.getStateMachineAccessor()
+                                                .withRegion()
+                                                .resetStateMachineReactively(
+                                                        new DefaultStateMachineContext<>(
+                                                                OrderStatus.valueOf(entity.getStatus()),
+                                                                null, null, null
+                                                        )
+                                                )
+                                )
+                                .then(sm.startReactively())
+                                .thenReturn(new Order(
+                                        id,
+                                        userId,
+                                        eventId,
+                                        totalPrice,
+                                        sm,
+                                        ticketIds
+                                ))
                 );
     }
 }

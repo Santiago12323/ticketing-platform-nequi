@@ -2,6 +2,7 @@ package com.nequi.ticketing_service.domain.port.out;
 
 import com.nequi.ticketing_service.domain.valueobject.EventId;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
+import com.nequi.ticketing_service.domain.valueobject.TicketId;
 import com.nequi.ticketing_service.infrastructure.messaging.sqs.dto.response.InventoryResponse;
 import reactor.core.publisher.Mono;
 
@@ -9,5 +10,5 @@ import java.util.List;
 
 public interface OrderPublisher {
 
-    Mono<Void> publishInventoryCheck(OrderId orderId, EventId eventId, List<String> seatIds);
+    Mono<Void> publishInventoryCheck(OrderId orderId, EventId eventId, List<TicketId> seatIds);
 }

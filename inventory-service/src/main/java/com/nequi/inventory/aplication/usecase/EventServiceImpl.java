@@ -42,14 +42,14 @@ public class EventServiceImpl implements EventService {
                     return saveEvent(newEvent);
                 })
                 .flatMapMany(savedEvent -> createTickets(eventId, capacity))
-                .then() // Convertimos el Flux<Ticket> a Mono<Void>
+                .then()
                 .doOnSuccess(v -> logIfEnabled("Event created successfully: " + eventId.value()))
                 .doOnError(e -> log.error("Error creating event {}: {}", eventId.value(), e.getMessage()));
     }
 
     private Event buildEvent(EventId eventId, int capacity, String name, String location) {
         return new Event(
-                eventId.value(),
+                eventId,
                 name,
                 location,
                 capacity,
@@ -74,7 +74,7 @@ public class EventServiceImpl implements EventService {
 
         return Ticket.create(
                         ticketId,
-                        eventId.value(),
+                        eventId,
                         ticketStateMachineFactory
                 )
                 .flatMap(ticketRepository::save)

@@ -1,10 +1,10 @@
 package com.nequi.inventory.domain.valueobject;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 import java.util.UUID;
 
-/**
- * Value object representing a unique event identifier.
- */
 public record EventId(String value) {
 
     public EventId {
@@ -18,16 +18,17 @@ public record EventId(String value) {
         }
     }
 
-    public static EventId newId() {
-        return new EventId(UUID.randomUUID().toString());
-    }
-
+    @JsonCreator
     public static EventId of(String value) {
         return new EventId(value);
     }
 
-    @Override
-    public String toString() {
-        return "EventId[%s]".formatted(value);
+    @JsonValue
+    public String value() {
+        return value;
+    }
+
+    public static EventId newId() {
+        return new EventId(UUID.randomUUID().toString());
     }
 }

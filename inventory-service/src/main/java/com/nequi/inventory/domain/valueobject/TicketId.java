@@ -1,5 +1,8 @@
 package com.nequi.inventory.domain.valueobject;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.UUID;
 
 public record TicketId(String value) {
@@ -10,8 +13,14 @@ public record TicketId(String value) {
         }
     }
 
-    public static TicketId of(String value) {
+    @JsonCreator
+    public static TicketId of(@JsonProperty("value") String value) {
         return new TicketId(value);
+    }
+
+    @JsonValue
+    public String value() {
+        return value;
     }
 
     public static TicketId generate() {

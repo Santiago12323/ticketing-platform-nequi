@@ -14,6 +14,7 @@ import org.springframework.messaging.support.MessageBuilder;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @EqualsAndHashCode(of = "id")
@@ -28,15 +29,18 @@ public class Order {
 
     private final Instant createdAt = Instant.now();
     private Instant updatedAt = createdAt;
+    private final List<TicketId> ticketIds;
+
 
     public static Mono<Order> create(OrderId orderId,
                                      UserId userId,
                                      EventId eventId,
                                      Money totalPrice,
+                                     List<TicketId> ticketIds,
                                      OrderStateMachineFactory factory) {
 
         return factory.create(orderId.value())
-                .map(sm -> new Order(orderId, userId, eventId, totalPrice, sm));
+                .map(sm -> new Order(orderId, userId, eventId, totalPrice, sm, ticketIds));
     }
 
     public Mono<Order> confirmInventory() {

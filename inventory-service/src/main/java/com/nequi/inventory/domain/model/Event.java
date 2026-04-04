@@ -1,5 +1,6 @@
 package com.nequi.inventory.domain.model;
 
+import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,7 +13,7 @@ import java.time.Instant;
 @AllArgsConstructor
 public class Event {
 
-    private final String eventId;
+    private final EventId eventId;
     private final String name;
     private final String location;
     private final int totalCapacity;
@@ -20,7 +21,7 @@ public class Event {
     private final Instant createdAt;
     private Instant updatedAt;
 
-    public Event(String eventId, String name, String location, int totalCapacity, EventStatus eventStatus) {
+    public Event(EventId eventId, String name, String location, int totalCapacity, EventStatus eventStatus) {
         this.eventId = eventId;
         this.name = name;
         this.location = location;

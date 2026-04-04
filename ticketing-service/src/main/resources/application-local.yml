@@ -13,18 +13,33 @@ spring:
   cloud:
     aws:
       region:
-        static: us-east-1
+        static: us-west-2
       credentials:
         access-key: dummy
         secret-key: dummy
+
       sqs:
-        endpoint: http://sqs.us-east-1.localhost.localstack.cloud:4566
-        inventory-request-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-request-queue
-        inventory-response-queue: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/inventory-response-queue
+        endpoint: http://sqs.us-west-2.localhost.localstack.cloud:4566
+        inventory-request-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-request-queue.fifo
+        inventory-response-queue: http://sqs.us-west-2.localhost.localstack.cloud:4566/000000000000/inventory-response-queue.fifo
+
       dynamodb:
         endpoint: http://localhost:8000
+
       redis:
         orders-stream: orders
+
+app:
+  messaging:
+    sqs:
+      inventory-queue-url: ${spring.cloud.aws.sqs.inventory-request-queue}
+      response-queue-url: ${spring.cloud.aws.sqs.inventory-response-queue}
+      message-group-id: inventory
+    retry:
+      max-attempts: 3
+      backoff-millis: 100
+    audit:
+      enabled: ${ticketing.statemachine.audit-enabled:false}
 
 ticketing:
   cache:
@@ -32,11 +47,9 @@ ticketing:
   statemachine:
     audit-enabled: true
 
-
 logging:
   level:
     root: INFO
     com.nequi: INFO
     org.springframework.statemachine: DEBUG
-    io.awspring.cloud.sqs: DEBUG
-    org.springframework.data.redis: DEBUG
+    org.springframework.data.redis: INFO

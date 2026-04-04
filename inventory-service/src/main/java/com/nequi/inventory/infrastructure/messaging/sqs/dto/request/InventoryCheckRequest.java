@@ -1,29 +1,27 @@
 package com.nequi.inventory.infrastructure.messaging.sqs.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.nequi.inventory.domain.valueobject.EventId;
+import com.nequi.inventory.domain.valueobject.OrderId;
+import com.nequi.inventory.domain.valueobject.TicketId;
+
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 public record InventoryCheckRequest(
-        String orderId,
-        String eventId,
-        List<String> requestedSeatIds,
-        String correlationId,
-        Instant createdAt
+        @JsonProperty("orderId")           OrderId orderId,
+        @JsonProperty("eventId")           EventId eventId,
+        @JsonProperty("requestedTicketIds") List<TicketId> requestedTicketIds,
+        @JsonProperty("createdAt")         Instant createdAt
 ) {
     public InventoryCheckRequest {
-        if (orderId == null || eventId == null || requestedSeatIds == null || requestedSeatIds.isEmpty()) {
+        if (orderId == null || eventId == null || requestedTicketIds == null || requestedTicketIds.isEmpty()) {
             throw new IllegalArgumentException("Invalid InventoryCheckRequest: Missing mandatory fields");
         }
+        if (createdAt == null) createdAt = Instant.now();
     }
 
-    public static InventoryCheckRequest of(String orderId, String eventId, List<String> seatIds) {
-        return new InventoryCheckRequest(
-                orderId,
-                eventId,
-                seatIds,
-                UUID.randomUUID().toString(),
-                Instant.now()
-        );
+    public static InventoryCheckRequest of(OrderId orderId, EventId eventId, List<TicketId> ticketIds) {
+        return new InventoryCheckRequest(orderId, eventId, ticketIds, Instant.now());
     }
 }

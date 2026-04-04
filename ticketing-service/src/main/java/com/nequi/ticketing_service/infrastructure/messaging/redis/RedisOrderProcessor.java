@@ -1,11 +1,13 @@
 package com.nequi.ticketing_service.infrastructure.messaging.redis;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.model.order.Order;
 import com.nequi.ticketing_service.domain.port.out.OrderPublisher;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.statemachine.machine.OrderStateMachineFactory;
 import com.nequi.ticketing_service.domain.valueobject.*;
+import com.nequi.ticketing_service.infrastructure.messaging.redis.dto.OrderData;
 import com.nequi.ticketing_service.infrastructure.messaging.redis.utils.constans.CacheConstants;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +21,9 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.stream.StreamReceiver;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 @Slf4j
 @Component
@@ -38,15 +40,14 @@ public class RedisOrderProcessor {
     @Value("${spring.cloud.aws.redis.orders-stream}")
     private String streamKey;
 
-
-    @Value("${ticketing.statemachine.audit-enabled}")
+    @Value("${ticketing.statemachine.audit-enabled:false}")
     private boolean auditEnabled;
 
     @PostConstruct
     public void init() {
-        this.consumeOrders()
-                .subscribeOn(Schedulers.boundedElastic())
-                .subscribe();
+        consumeOrders()
+                .doOnError(e -> log.error("Stream fatal error", e))
+                .subscribe(); // entrypoint
     }
 
     private Mono<Void> consumeOrders() {
@@ -54,52 +55,73 @@ public class RedisOrderProcessor {
                         Consumer.from(CacheConstants.ORDER_CONSUMER_GROUP, CacheConstants.ORDER_CONSUMER_NAME),
                         StreamOffset.create(streamKey, ReadOffset.lastConsumed())
                 )
-                .limitRate(CacheConstants.STREAM_LIMIT_RATE) //blackpresure
-                .flatMap(record -> processOrderFromStream(record)
-                        .flatMap(unused -> acknowledge(record))
-                        .onErrorResume(e -> {
-                            logError("Critical error creating initial order", e);
-                            return Mono.empty();
-                        }), CacheConstants.STREAM_PARALLELISM)
+                .limitRate(CacheConstants.STREAM_LIMIT_RATE)
+                .flatMap(this::processRecord, CacheConstants.STREAM_PARALLELISM)
                 .then();
     }
 
-    private Mono<Void> processOrderFromStream(ObjectRecord<String, String> record) {
-        return Mono.fromCallable(() -> objectMapper.readTree(record.getValue()))
-                .flatMap(node -> {
-                    OrderId orderId = OrderId.of(node.get("orderId").asText());
-                    UserId userId = UserId.of(node.get("userId").asText());
-                    EventId eventId = EventId.of(node.get("eventId").asText());
-                    Money total = Money.of(node.get("totalPrice").asDouble(), node.get("currency").asText());
-                    List<String> seats = objectMapper.convertValue(node.get("seatIds"), List.class);
-
-                    logAudit("Processing order creation for user: {} and event: {}", userId.value(), eventId.value());
-
-                    return Order.create(orderId,userId, eventId, total, smFactory)
-                            .flatMap(order -> repository.save(order, seats))
-                            .flatMap(savedOrder -> {
-                                logAudit("Order {} saved. Publishing to SQS for inventory check.", savedOrder.getId().value());
-                                return publisher.publishInventoryCheck(savedOrder.getId(), eventId, seats);
-                            });
+    private Mono<Void> processRecord(ObjectRecord<String, String> record) {
+        return parse(record)
+                .flatMap(this::createAndPublishOrder)
+                .then(acknowledge(record))
+                .onErrorResume(e -> {
+                    log.error("Error processing record {}", record.getId(), e);
+                    return Mono.empty();
                 });
+    }
+
+    private Mono<OrderData> parse(ObjectRecord<String, String> record) {
+        return Mono.fromSupplier(() -> {
+            try {
+                JsonNode node = objectMapper.readTree(record.getValue());
+
+                return new OrderData(
+                        OrderId.of(node.get("orderId").asText()),
+                        UserId.of(node.get("userId").asText()),
+                        EventId.of(node.get("eventId").asText()),
+                        node.get("totalPrice").asDouble(),
+                        node.get("currency").asText(),
+                        mapSeats(node.get("seatIds"))
+                );
+
+            } catch (Exception e) {
+                throw new RuntimeException("Invalid JSON", e);
+            }
+        });
+    }
+
+    private List<TicketId> mapSeats(JsonNode seatNodes) {
+        if (seatNodes == null || !seatNodes.isArray()) {
+            return List.of();
+        }
+
+        return StreamSupport.stream(seatNodes.spliterator(), false)
+                .map(JsonNode::asText)
+                .map(TicketId::of)
+                .toList();
+    }
+
+    private Mono<Void> createAndPublishOrder(OrderData data) {
+
+        OrderId orderId = data.orderId();
+        UserId userId = data.userId();
+        EventId eventId = data.eventId();
+        Money total = Money.of(data.total(), data.currency());
+
+        return Order.create(orderId, userId, eventId, total, data.ticketIds(), smFactory)
+                .flatMap(order -> repository.save(order))
+                .flatMap(saved -> publisher.publishInventoryCheck(saved.getId(), eventId, data.ticketIds()))
+                .then();
     }
 
     private Mono<Void> acknowledge(ObjectRecord<String, String> record) {
         return redisTemplate.opsForStream()
                 .acknowledge(streamKey, CacheConstants.ORDER_CONSUMER_GROUP, record.getId())
-                .doOnSuccess(v -> logAudit("Message {} acknowledged in Redis", record.getId()))
+                .doOnSuccess(v -> logAudit("ACK {}", record.getId()))
                 .then();
     }
 
-    private void logAudit(String format, Object... args) {
-        if (auditEnabled) {
-            log.info(format, args);
-        }
-    }
-
-    private void logError(String message, Throwable e) {
-        if (auditEnabled) {
-            log.error("{}: {}", message, e.getMessage());
-        }
+    private void logAudit(String msg, Object... args) {
+        if (auditEnabled) log.info(msg, args);
     }
 }
