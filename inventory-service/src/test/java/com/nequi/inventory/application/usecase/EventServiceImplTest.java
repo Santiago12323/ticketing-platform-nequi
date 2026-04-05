@@ -50,7 +50,6 @@ class EventServiceImplTest {
     @DisplayName("Should create event and its tickets successfully")
     void shouldCreateEventSuccessfully() {
         EventId id = EventId.newId();
-        // Usamos el método estático create del dominio tal como lo hace el servicio
         Ticket realTicket = Ticket.create(TicketId.generate(), id);
 
         when(eventRepository.existsById(anyString())).thenReturn(Mono.just(false));
@@ -80,17 +79,38 @@ class EventServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should create event but zero tickets when capacity is 0")
-    void shouldCreateEventWithZeroTickets() {
+    @DisplayName("Should throw BusinessException when capacity is 0")
+    void shouldFailWhenCapacityIsZero() {
+        // Arrange
         EventId id = EventId.newId();
         when(eventRepository.existsById(id.value())).thenReturn(Mono.just(false));
-        when(eventRepository.save(any(Event.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
 
+        // Act & Assert
         StepVerifier.create(eventService.createEvent(id, 0, "Empty Event", "Virtual"))
-                .verifyComplete();
+                .expectErrorMatches(throwable ->
+                        throwable instanceof BusinessException &&
+                                ((BusinessException) throwable).getErrorCode().equals("ZERO_EVENT_CAPACITY"))
+                .verify();
 
-        verify(eventRepository).save(any());
+        verify(eventRepository, never()).save(any());
         verify(ticketRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw BusinessException when capacity is negative")
+    void shouldFailWhenCapacityIsNegative() {
+        // Arrange
+        EventId id = EventId.newId();
+        when(eventRepository.existsById(id.value())).thenReturn(Mono.just(false));
+
+        // Act & Assert
+        StepVerifier.create(eventService.createEvent(id, -1, "Negative Event", "Virtual"))
+                .expectErrorMatches(throwable ->
+                        throwable instanceof BusinessException &&
+                                ((BusinessException) throwable).getErrorCode().equals("INVALID_EVENT_CAPACITY"))
+                .verify();
+
+        verify(eventRepository, never()).save(any());
     }
 
     @Test

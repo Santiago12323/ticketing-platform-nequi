@@ -9,6 +9,7 @@ public final class CacheConstants {
 
     public static final int STREAM_LIMIT_RATE = 100;
     public static final int STREAM_PARALLELISM = 10;
+    public static final String PAYMENTS_STREAM = "payments-stream";
 
     private CacheConstants() {}
 }

@@ -2,6 +2,7 @@ package com.nequi.ticketing_service.infrastructure.messaging.sqs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.port.out.OrderPublisher;
+import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
 import com.nequi.ticketing_service.domain.valueobject.EventId;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
 import com.nequi.ticketing_service.domain.valueobject.TicketId;
@@ -30,55 +31,72 @@ public class SqsOrderPublisher implements OrderPublisher {
     private final ObjectMapper objectMapper;
     private final MessagingProperties properties;
 
+
     @Override
     public Mono<Void> publishInventoryCheck(OrderId orderId, EventId eventId, List<TicketId> seatIds) {
-        return Mono.defer(() -> buildMessage(orderId, eventId, seatIds))
-                .flatMap(body -> sendMessage(body, orderId))
-                .doOnSuccess(resp -> logAudit("SQS OK order={} messageId={}", orderId.value(), resp.messageId()))
-                .doOnError(e -> log.error("SQS FAIL order={}", orderId.value(), e.getMessage()))
+        InventoryCheckRequest payload = InventoryCheckRequest.of(
+                orderId.value(),
+                eventId.value(),
+                OrderEvent.START_PROCESS,
+                seatIds
+        );
+        return executePublish(orderId, payload, "InventoryCheckRequested");
+    }
+
+    @Override
+    public Mono<Void> publishPaymentConfirmed(OrderId orderId, String paymentId, EventId eventId, List<TicketId> seatIds) {
+        InventoryCheckRequest payload = InventoryCheckRequest.of(
+                orderId.value(),
+                eventId.value(),
+                OrderEvent.CONFIRM_PAYMENT,
+                seatIds
+        );
+        return executePublish(orderId, payload, "PaymentConfirmed");
+    }
+
+    private Mono<Void> executePublish(OrderId orderId, InventoryCheckRequest payload, String eventType) {
+        return buildMessage(payload)
+                .flatMap(body -> sendMessage(body, orderId, eventType))
+                .doOnSuccess(resp -> logAudit("SQS OK order={} event={} messageId={}", orderId.value(), eventType, resp.messageId()))
+                .doOnError(e -> log.error("SQS FAIL order={} event={}", orderId.value(), eventType, e.getMessage()))
                 .retryWhen(retrySpec(orderId))
                 .then();
     }
 
-    private Mono<String> buildMessage(OrderId orderId, EventId eventId, List<TicketId> seatIds) {
+    private Mono<String> buildMessage(InventoryCheckRequest payload) {
         return Mono.fromSupplier(() -> {
             try {
-                return objectMapper.writeValueAsString(
-                        InventoryCheckRequest.of(orderId.value(), eventId.value(), seatIds)
-                );
+                return objectMapper.writeValueAsString(payload);
             } catch (Exception e) {
-                throw new RuntimeException("Error serializing InventoryCheckRequest", e);
+                throw new RuntimeException("Error serializing request", e);
             }
         });
     }
 
-    private Mono<SendMessageResponse> sendMessage(String body, OrderId orderId) {
-
+    private Mono<SendMessageResponse> sendMessage(String body, OrderId orderId, String eventType) {
         String orderIdValue = orderId.value();
+
+        String deduplicationId = orderIdValue + ":" + eventType;
 
         SendMessageRequest request = SendMessageRequest.builder()
                 .queueUrl(properties.getSqs().getInventoryQueueUrl())
                 .messageBody(body)
-
-                .messageDeduplicationId(orderIdValue)
+                .messageDeduplicationId(deduplicationId)
                 .messageGroupId(orderIdValue)
                 .messageAttributes(Map.of(
                         "eventType", MessageAttributeValue.builder()
                                 .dataType("String")
-                                .stringValue("InventoryCheckRequested")
+                                .stringValue(eventType)
                                 .build(),
                         "orderId", MessageAttributeValue.builder()
                                 .dataType("String")
                                 .stringValue(orderIdValue)
                                 .build()
                 ))
-
                 .build();
 
         return Mono.fromFuture(() -> sqsClient.sendMessage(request))
-                .doOnSubscribe(s -> log.info(" Enviando mensaje SQS orderId={}", orderIdValue))
-                .doOnSuccess(resp -> log.info(" SQS enviado orderId={} messageId={}", orderIdValue, resp.messageId()))
-                .doOnError(e -> log.error(" Error enviando SQS orderId={}", orderIdValue, e));
+                .doOnSubscribe(s -> log.info(" Enviando SQS {} orderId={}", eventType, orderIdValue));
     }
 
     private Retry retrySpec(OrderId orderId) {

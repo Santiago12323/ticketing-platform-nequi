@@ -14,6 +14,16 @@ services:
       AWS_SECRET_ACCESS_KEY: dummy
       AWS_REGION: us-west-2
 
+  dynamodb-init:
+    image: curlimages/curl:latest
+    container_name: dynamodb-init
+    depends_on:
+      - dynamodb-local
+    volumes:
+      - ./init-dynamodb.sh:/init-dynamodb.sh
+    entrypoint: ["sh", "-c", "sleep 3 && sh /init-dynamodb.sh"]
+    restart: "no"
+
   redis:
     image: redis:7.2
     container_name: redis

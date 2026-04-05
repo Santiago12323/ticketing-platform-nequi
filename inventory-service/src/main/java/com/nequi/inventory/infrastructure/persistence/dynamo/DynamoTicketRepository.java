@@ -10,6 +10,7 @@ import com.nequi.inventory.domain.valueobject.EventId;
 import com.nequi.inventory.domain.valueobject.OrderId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryResponse;
+import com.nequi.inventory.infrastructure.messaging.sqs.enums.Type;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.EventStatus;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.TicketEntity;
 import com.nequi.inventory.infrastructure.persistence.mapper.TicketEntityMapper;
@@ -111,9 +112,19 @@ public class DynamoTicketRepository implements TicketRepository {
                 .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found")))
                 .flatMap(this::ensureEventIsActive)
                 .flatMap(event -> Flux.fromIterable(ticketIds)
-                        .concatMap(id -> reserveSingleTicket(event, id))
+                        .concatMap(id -> reserveSingleTicket(event, id, orderId))
                         .collectList())
-                .flatMap(results -> handleBatchResults(orderId, eventId, ticketIds, results, true));
+                .flatMap(results -> handleBatchResults(orderId, eventId, ticketIds, results, Type.RESERVE));
+    }
+
+    @Override
+    public Mono<InventoryResponse> confirmAll(EventId eventId, Set<String> ticketIds, OrderId orderId) {
+        return eventRepository.findById(eventId)
+                .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found")))
+                .flatMap(event -> Flux.fromIterable(ticketIds)
+                        .concatMap(id -> confirmSingleTicket(eventId, id))
+                        .collectList())
+                .flatMap(results -> handleBatchResults(orderId, eventId, ticketIds, results, Type.PAYMENT));
     }
 
     private Mono<Event> ensureEventIsActive(Event event) {
@@ -123,11 +134,12 @@ public class DynamoTicketRepository implements TicketRepository {
         return Mono.just(event);
     }
 
-    private Mono<Result> reserveSingleTicket(Event event, String ticketId) {
+    private Mono<Result> reserveSingleTicket(Event event, String ticketId, OrderId orderId) {
         return findByIdAnEventId(event.getEventId(), ticketId)
                 .switchIfEmpty(Mono.error(new BusinessException("TICKET_NOT_FOUND", "Ticket not found")))
                 .flatMap(ticket -> {
                     ticket.reserve(event);
+                    ticket.setOrderId(orderId);
                     return saveWithCondition(ticket, TicketStatus.AVAILABLE);
                 })
                 .map(t -> new Result(ticketId, true))
@@ -135,17 +147,6 @@ public class DynamoTicketRepository implements TicketRepository {
                     log.error("Failed to reserve {}: {}", ticketId, e.getMessage());
                     return Mono.just(new Result(ticketId, false));
                 });
-    }
-
-    @Override
-    public Mono<Void> confirmAll(EventId eventId, Set<String> ticketIds) {
-        return eventRepository.findById(eventId)
-                .switchIfEmpty(Mono.error(new BusinessException("EVENT_NOT_FOUND", "Event not found")))
-                .flatMap(event -> Flux.fromIterable(ticketIds)
-                        .concatMap(id -> confirmSingleTicket(eventId, id))
-                        .collectList())
-                .flatMap(results -> handleBatchResults(null, eventId, ticketIds, results, false))
-                .then();
     }
 
     private Mono<Result> confirmSingleTicket(EventId eventId, String ticketId) {
@@ -162,7 +163,7 @@ public class DynamoTicketRepository implements TicketRepository {
                 });
     }
 
-    private Mono<InventoryResponse> handleBatchResults(OrderId orderId, EventId eventId, Set<String> ticketIds, List<Result> results, boolean isReservation) {
+    private Mono<InventoryResponse> handleBatchResults(OrderId orderId, EventId eventId, Set<String> ticketIds, List<Result> results, Type type) {
         List<String> failedIds = results.stream()
                 .filter(r -> !r.success())
                 .map(Result::ticketId)
@@ -171,24 +172,28 @@ public class DynamoTicketRepository implements TicketRepository {
         String responseOrderId = orderId != null ? orderId.value() : "N/A";
 
         if (failedIds.isEmpty()) {
-            return Mono.just(InventoryResponse.success(responseOrderId));
+            return Mono.just(InventoryResponse.success(responseOrderId, type));
         }
 
-        return (isReservation ? rollbackReservations(eventId, ticketIds) : rollbackPayments(eventId, ticketIds))
-                .thenReturn(InventoryResponse.failure(responseOrderId, failedIds));
+        Mono<Void> rollbackAction = (type == Type.RESERVE)
+                ? rollbackReservations(eventId, ticketIds, orderId)
+                : rollbackPayments(eventId, ticketIds);
+
+        return rollbackAction
+                .thenReturn(InventoryResponse.failure(responseOrderId, failedIds, type));
     }
 
-    private Mono<Void> rollbackReservations(EventId eventId, Set<String> ticketIds) {
+    private Mono<Void> rollbackReservations(EventId eventId, Set<String> ticketIds, OrderId orderId) {
         return Flux.fromIterable(ticketIds)
                 .concatMap(id -> findByIdAnEventId(eventId, id)
                         .flatMap(t -> {
-                            if (t != null && t.getStatus() == TicketStatus.RESERVED) {
+                            if (t != null && t.getStatus() == TicketStatus.RESERVED
+                                    && orderId.equals(t.getOrderId())) {
                                 t.cancel();
                                 return saveWithCondition(t, TicketStatus.RESERVED);
                             }
                             return Mono.empty();
-                        })
-                        .onErrorResume(e -> Mono.empty()))
+                        }))
                 .then();
     }
 

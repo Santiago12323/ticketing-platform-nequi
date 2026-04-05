@@ -44,6 +44,15 @@ public class Order {
         applyEvent(OrderEvent.VALIDATION_SUCCESS);
     }
 
+
+    public void confirmPayment() {
+        applyEvent(OrderEvent.CONFIRM_PAYMENT);
+    }
+
+    public void failPayment() {
+        applyEvent(OrderEvent.FAIL_PAYMENT);
+    }
+
     public void failInventory() {
         applyEvent(OrderEvent.VALIDATION_FAILED);
     }

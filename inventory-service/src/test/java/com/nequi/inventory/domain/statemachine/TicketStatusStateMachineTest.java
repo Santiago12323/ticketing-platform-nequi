@@ -13,38 +13,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TicketStatusStateMachineTest {
 
-    @ParameterizedTest(name = "State {0} + Event {1} -> Should result in {2}")
+    @ParameterizedTest(name = "Desde {0} con {1} -> Debe ir a {2}")
     @MethodSource("provideValidTransitions")
-    @DisplayName("Should allow valid business transitions")
+    @DisplayName("Transiciones validas de negocio")
     void shouldAllowValidTransitions(TicketStatus initialState, TicketEvent event, TicketStatus expectedState) {
-        // Act
         TicketStatus result = initialState.transition(event);
-
-        // Assert
         assertEquals(expectedState, result);
     }
 
-    @ParameterizedTest(name = "State {0} + Event {1} -> Should be REJECTED")
+    @ParameterizedTest(name = "Desde {0} con {1} -> Debe ser RECHAZADO")
     @MethodSource("provideInvalidTransitions")
-    @DisplayName("Should throw BusinessException for forbidden transitions")
+    @DisplayName("Lanzar BusinessException para transiciones prohibidas")
     void shouldRejectInvalidTransitions(TicketStatus initialState, TicketEvent event) {
-        // Arrange
         String expectedErrorCode = "TICKET_EVENT_NOT_ACCEPTED";
 
-        // Act
         BusinessException exception = assertThrows(BusinessException.class, () -> {
             initialState.transition(event);
         });
 
-        // Assert
         assertEquals(expectedErrorCode, exception.getErrorCode());
-        assertTrue(exception.getMessage().contains(event.name()));
+        assertTrue(exception.getMessage().contains(event.toString()));
     }
 
     @Test
-    @DisplayName("Should correctly identify final states")
+    @DisplayName("Identificacion correcta de estados finales")
     void shouldIdentifyFinalStates() {
-        // Act & Assert
         assertAll(
                 () -> assertTrue(TicketStatus.SOLD.isFinalState()),
                 () -> assertTrue(TicketStatus.COMPLIMENTARY.isFinalState()),
@@ -58,9 +51,12 @@ class TicketStatusStateMachineTest {
         return Stream.of(
                 Arguments.of(TicketStatus.AVAILABLE, TicketEvent.RESERVE, TicketStatus.RESERVED),
                 Arguments.of(TicketStatus.AVAILABLE, TicketEvent.ASSIGN_COMPLIMENTARY, TicketStatus.COMPLIMENTARY),
+
                 Arguments.of(TicketStatus.RESERVED, TicketEvent.START_PAYMENT, TicketStatus.PENDING_CONFIRMATION),
+                Arguments.of(TicketStatus.RESERVED, TicketEvent.CONFIRM_PAYMENT, TicketStatus.SOLD), // <-- Nueva transicion valida
                 Arguments.of(TicketStatus.RESERVED, TicketEvent.CANCEL_RESERVATION, TicketStatus.AVAILABLE),
                 Arguments.of(TicketStatus.RESERVED, TicketEvent.EXPIRE_RESERVATION, TicketStatus.AVAILABLE),
+
                 Arguments.of(TicketStatus.PENDING_CONFIRMATION, TicketEvent.CONFIRM_PAYMENT, TicketStatus.SOLD),
                 Arguments.of(TicketStatus.PENDING_CONFIRMATION, TicketEvent.FAIL_PAYMENT, TicketStatus.AVAILABLE),
                 Arguments.of(TicketStatus.PENDING_CONFIRMATION, TicketEvent.EXPIRE_RESERVATION, TicketStatus.AVAILABLE)
@@ -70,12 +66,14 @@ class TicketStatusStateMachineTest {
     private static Stream<Arguments> provideInvalidTransitions() {
         return Stream.of(
                 Arguments.of(TicketStatus.AVAILABLE, TicketEvent.CONFIRM_PAYMENT),
+                Arguments.of(TicketStatus.AVAILABLE, TicketEvent.FAIL_PAYMENT),
+
                 Arguments.of(TicketStatus.SOLD, TicketEvent.RESERVE),
                 Arguments.of(TicketStatus.SOLD, TicketEvent.CANCEL_RESERVATION),
-                Arguments.of(TicketStatus.PENDING_CONFIRMATION, TicketEvent.RESERVE),
+
                 Arguments.of(TicketStatus.COMPLIMENTARY, TicketEvent.START_PAYMENT),
-                Arguments.of(TicketStatus.RESERVED, TicketEvent.CONFIRM_PAYMENT),
-                Arguments.of(TicketStatus.AVAILABLE, TicketEvent.FAIL_PAYMENT)
+
+                Arguments.of(TicketStatus.PENDING_CONFIRMATION, TicketEvent.RESERVE)
         );
     }
 }

@@ -11,4 +11,6 @@ import java.util.List;
 public interface OrderPublisher {
 
     Mono<Void> publishInventoryCheck(OrderId orderId, EventId eventId, List<TicketId> seatIds);
+
+    Mono<Void> publishPaymentConfirmed(OrderId orderId, String paymentId, EventId eventId, List<TicketId> seatIds);
 }

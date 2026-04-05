@@ -9,13 +9,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 
+import java.util.List;
 import java.util.Set;
 
 public interface InventoryService {
 
     Mono<Void> reserve(EventId eventId, Set<TicketId> tickets, OrderId orderId);
 
-    Mono<Void> confirm(EventId eventId, Set<TicketId> tickets);
+    Mono<Void> confirm(EventId eventId, List<TicketId> tickets, OrderId orderId);
 
     Flux<Ticket> getTicketsByEvent(EventId eventId);
 

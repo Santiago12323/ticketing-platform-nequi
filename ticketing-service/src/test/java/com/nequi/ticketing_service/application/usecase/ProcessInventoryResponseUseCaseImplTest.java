@@ -2,6 +2,7 @@ package com.nequi.ticketing_service.application.usecase;
 
 import com.nequi.ticketing_service.domain.model.order.Order;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
+import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
 import com.nequi.ticketing_service.infrastructure.messaging.redis.utils.constans.CacheKeyGenerator;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +55,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         when(valueOperations.delete(CACHE_KEY)).thenReturn(Mono.just(true));
 
         // Act
-        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, true);
+        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, OrderEvent.VALIDATION_SUCCESS);
 
         // Assert
         StepVerifier.create(result).verifyComplete();
@@ -77,7 +78,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         when(valueOperations.delete(CACHE_KEY)).thenReturn(Mono.just(true));
 
         // Act
-        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, false);
+        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, OrderEvent.VALIDATION_FAILED);
 
         // Assert
         StepVerifier.create(result).verifyComplete();
@@ -95,7 +96,7 @@ class ProcessInventoryResponseUseCaseImplTest {
         when(repository.updateStatus(any())).thenReturn(Mono.error(new RuntimeException("DynamoDB Down")));
 
         // Act
-        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, true);
+        Mono<Void> result = processInventoryResponseUseCase.execute(VALID_ORDER_ID, OrderEvent.VALIDATION_SUCCESS);
 
         // Assert
         StepVerifier.create(result)
