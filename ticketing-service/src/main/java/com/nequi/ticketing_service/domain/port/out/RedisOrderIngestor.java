@@ -1,9 +1,7 @@
 package com.nequi.ticketing_service.domain.port.out;
 
-import com.nequi.ticketing_service.domain.valueobject.EventId;
-import com.nequi.ticketing_service.domain.valueobject.Money;
-import com.nequi.ticketing_service.domain.valueobject.OrderId;
-import com.nequi.ticketing_service.domain.valueobject.UserId;
+import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
+import com.nequi.ticketing_service.domain.valueobject.*;
 import reactor.core.publisher.Mono;
 
 import java.util.List;

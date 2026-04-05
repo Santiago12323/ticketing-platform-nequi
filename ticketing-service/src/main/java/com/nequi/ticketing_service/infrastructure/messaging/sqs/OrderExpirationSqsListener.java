@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -24,7 +25,7 @@ public class OrderExpirationSqsListener {
     private final ObjectMapper objectMapper;
     private final SqsAsyncClient sqsAsyncClient;
 
-    @Value("${spring.cloud.aws.sqs.inventory-ttl-dlq}")
+    @Value("${spring.cloud.aws.sqs.inventory-response-dlq}")
     private String dlqUrl;
 
     @Value("${ticketing.statemachine.audit-enabled}")
@@ -32,12 +33,12 @@ public class OrderExpirationSqsListener {
 
     @SqsListener("${spring.cloud.aws.sqs.order-ttl-queue}")
     public void onMessageReceived(String message) {
+        System.out.println("reved out llego" + message);
         processExpiration(message)
-                .onErrorResume(e -> {
-                    log.error("[ORDER_TTL ERROR] Enviando a DLQ: {}", e.getMessage());
-                    return sendToDlq(message, e.getMessage());
-                })
-                .block();
+                .onErrorResume(e ->
+                    sendToDlq(message, e.getMessage())
+                )
+                .subscribe();
     }
 
     private Mono<Void> processExpiration(String message) {
@@ -62,6 +63,7 @@ public class OrderExpirationSqsListener {
                         sqsAsyncClient.sendMessage(SendMessageRequest.builder()
                                 .queueUrl(dlqUrl)
                                 .messageBody(message)
+                                .messageDeduplicationId(UUID.randomUUID().toString())
                                 .messageAttributes(Map.of(
                                         "failureReason", MessageAttributeValue.builder()
                                                 .dataType("String")

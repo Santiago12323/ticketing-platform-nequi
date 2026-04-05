@@ -6,6 +6,7 @@ import com.nequi.ticketing_service.domain.port.in.OrderUseCase;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.port.out.RedisOrderIngestor;
 import com.nequi.ticketing_service.domain.valueobject.*;
+import com.nequi.ticketing_service.infrastructure.messaging.redis.payment.RedisPaymentIngestor;
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
 import com.nequi.ticketing_service.infrastructure.persistence.mapper.OrderEntityMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class OrderUseCaseImpl implements OrderUseCase {
 
     private final RedisOrderIngestor redisOrderIngestor;
+    private final RedisPaymentIngestor redisPaymentIngestor;
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final OrderRepository repository;
     private final ObjectMapper objectMapper;
@@ -42,6 +44,19 @@ public class OrderUseCaseImpl implements OrderUseCase {
 
         return redisOrderIngestor.ingest(userId, eventId, totalPrice, seatIds, orderId)
                 .doOnSuccess(id -> logAudit("Order intent {} ingested in buffer for user {}", id, userId.value()))
+                .thenReturn(orderId);
+    }
+
+    @Override
+    public Mono<OrderId> confirmAll(UserId userId, EventId eventId, Money totalPrice,
+                                    List<String> seatIds, OrderId orderId) {
+        return redisPaymentIngestor.ingest(userId, eventId, seatIds, orderId)
+                .doOnSuccess(v -> {
+                    if (auditEnabled) {
+                        log.info("[PAYMENT_INGEST] Order {} for user {} sent to Redis Stream",
+                                orderId.value(), userId.value());
+                    }
+                })
                 .thenReturn(orderId);
     }
 
@@ -94,19 +109,16 @@ public class OrderUseCaseImpl implements OrderUseCase {
 
     @Override
     public Mono<Void> expireOrder(OrderId orderId) {
-        return repository.findById(orderId)
-                .switchIfEmpty(Mono.fromRunnable(() ->
-                        logAudit("[ORDER_EXPIRE] Orden no encontrada: {}", orderId.value())
-                ))
-                .flatMap(order -> {
-                    if (order.isFinal()) {
-                        logAudit("[ORDER_EXPIRE] Orden {} ya en estado final: {}",
-                                orderId.value(), order.getStatus());
-                        return Mono.empty();
-                    }
+        log.info("[ORDER_EXPIRE] Intentando expirar orden: {}", orderId.value());
 
-                    if (!order.getStatus().isExpirable()) {
-                        logAudit("[ORDER_EXPIRE] Orden {} en estado no expirable: {}",
+        return repository.findById(orderId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("[ORDER_EXPIRE] Orden {} no encontrada", orderId.value());
+                    return Mono.empty();
+                }))
+                .flatMap(order -> {
+                    if (order.isFinal() || !order.getStatus().isExpirable()) {
+                        logAudit("[ORDER_EXPIRE] Salto de expiración para orden {}. Estado: {}",
                                 orderId.value(), order.getStatus());
                         return Mono.empty();
                     }
@@ -114,16 +126,18 @@ public class OrderUseCaseImpl implements OrderUseCase {
                     order.expire();
 
                     return repository.save(order)
-                            .then(evictCache(orderId))
-                            .doOnSuccess(v -> logAudit("[ORDER_EXPIRE] Orden {} expirada: {}",
-                                    orderId.value(), order.getStatus()));
+                            .doOnError(ex -> log.error("[DB_ERROR] Fallo al guardar orden: {}", ex.getMessage()))
+                            .flatMap(savedOrder -> evictCache(orderId)) 
+                            .doOnSuccess(v -> logAudit("[ORDER_EXPIRE] Proceso completo para orden: {}", orderId.value()))
+                            .then();
                 });
     }
 
-    private Mono<Void> evictCache(OrderId orderId) {
-        String cacheKey = "order:cache:" + orderId.value();
-        return redisTemplate.delete(cacheKey)
-                .doOnSuccess(v -> logAudit("[ORDER_EXPIRE] Cache evicted para orden {}", orderId.value()))
+    private Mono<Void> evictCache(OrderId id) {
+        String cacheKey = "order:cache:" + id.value();
+        return redisTemplate.opsForValue().delete(cacheKey)
+                .doOnSuccess(v -> logAudit("[CACHE] Eliminado de Redis: {}", cacheKey))
                 .then();
     }
+
 }

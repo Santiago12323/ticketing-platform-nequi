@@ -44,15 +44,41 @@ public class SqsListenerImpl {
 
     private Mono<Void> process(String message) {
         return Mono.fromCallable(() -> objectMapper.readValue(message, InventoryCheckRequest.class))
-                .flatMap(this::mapToCommand)
-                .doOnNext(cmd -> {
-                    if (auditEnabled) {
-                        log.info("[SQS AUDIT] Processing Inventory Command: OrderId={}, EventId={}, TicketsCount={}",
-                                cmd.orderId(), cmd.eventId(), cmd.tickets().size());
+                .flatMap(request -> switch (request.event()) {
+                    case START_PROCESS -> handleReserveFlow(request);
+                    case CONFIRM_PAYMENT -> handlePaymentFlow(request);
+                    default -> {
+                        log.warn("[SQS] Evento no soportado en este listener: {}", request.event());
+                        yield Mono.empty();
                     }
+                });
+    }
+
+    private Mono<Void> handleReserveFlow(InventoryCheckRequest request) {
+        return mapToCommand(request)
+                .flatMap(cmd -> {
+                    return idempotencyService.tryProcess(cmd.orderId())
+                            .flatMap(isNew -> Boolean.TRUE.equals(isNew)
+                                    ? inventoryService.reserve(cmd.eventId(), cmd.tickets(), cmd.orderId())
+                                    : Mono.empty());
                 })
-                .flatMap(this::handle)
                 .then();
+    }
+
+    private Mono<Void> handlePaymentFlow(InventoryCheckRequest request) {
+        return inventoryService.confirm(
+                request.eventId(),
+                request.requestedTicketIds(),
+                request.orderId()
+        ).then();
+    }
+
+
+    private Mono<InventoryCommand> mapToCommand(InventoryCheckRequest request) {
+        return Mono.fromSupplier(() -> {
+            Set<TicketId> tickets = new HashSet<>(request.requestedTicketIds());
+            return new InventoryCommand(request.orderId(), request.eventId(), tickets);
+        });
     }
 
     private Mono<Void> sendToDlq(String rawMessage) {
@@ -71,20 +97,9 @@ public class SqsListenerImpl {
                 .then();
     }
 
-    private Mono<Void> handle(InventoryCommand cmd) {
-        return idempotencyService.tryProcess(cmd.orderId())
-                .flatMap(isNew -> {
-                    if (Boolean.TRUE.equals(isNew)) {
-                        return inventoryService.reserve(cmd.eventId(), cmd.tickets(), cmd.orderId());
-                    } else {
-                        if (auditEnabled) log.warn("[SQS AUDIT] Skipping duplicate: {}", cmd.orderId());
-                        return Mono.empty();
-                    }
-                }).then();
-    }
-
-    private Mono<InventoryCommand> mapToCommand(InventoryCheckRequest request) {
-        Set<TicketId> tickets = new HashSet<>(request.requestedTicketIds());
-        return Mono.just(new InventoryCommand(request.orderId(), request.eventId(), tickets));
+    private void logAudit(String type, String orderId, String eventId) {
+        if (auditEnabled) {
+            log.info("[SQS AUDIT] Action={}, OrderId={}, EventId={}", type, orderId, eventId);
+        }
     }
 }

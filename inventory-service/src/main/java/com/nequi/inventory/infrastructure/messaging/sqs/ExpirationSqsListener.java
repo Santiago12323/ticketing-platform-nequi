@@ -27,7 +27,7 @@ public class ExpirationSqsListener {
     private final ObjectMapper objectMapper;
     private final SqsAsyncClient sqsAsyncClient;
 
-    @Value("${spring.cloud.aws.sqs.inventory-ttl-dlq}")
+    @Value("${spring.cloud.aws.sqs.inventory-request-dlq}")
     private String dlqUrl;
 
     @Value("${ticketing.statemachine.audit-enabled}")
@@ -46,7 +46,7 @@ public class ExpirationSqsListener {
     private Mono<Void> processExpiration(String message) {
         return Mono.fromCallable(() -> objectMapper.readValue(message, Map.class))
                 .flatMap(map -> {
-                    String orderId   = (String) map.get("orderId");
+                    OrderId orderId   = OrderId.of((String) map.get("orderId"));
                     var ticketIdsRaw = (List<String>) map.get("ticketIds");
 
                     if (orderId == null || ticketIdsRaw == null) {
@@ -59,16 +59,30 @@ public class ExpirationSqsListener {
 
                     logAudit("[TTL] Liberando {} tickets para orden: {}", ticketIds.size(), orderId);
 
-                    return inventoryService.releaseReservedStock(new OrderId(orderId), ticketIds);
+                    return inventoryService.releaseReservedStock(orderId, ticketIds);
                 })
                 .doOnSuccess(v -> logAudit("[TTL SUCCESS] Flujo de liberación completado"));
     }
 
     private Mono<Void> sendToDlq(String message, String reason) {
+        String groupId = "default-group";
+        try {
+            Map<String, Object> map = objectMapper.readValue(message, Map.class);
+            if (map.containsKey("orderId")) {
+                groupId = map.get("orderId").toString();
+            }
+        } catch (Exception e) {
+            log.warn("[DLQ] No se pudo parsear orderId para GroupId, usando default");
+        }
+
+        final String finalGroupId = groupId;
+
         return Mono.fromCompletionStage(() ->
                         sqsAsyncClient.sendMessage(SendMessageRequest.builder()
                                 .queueUrl(dlqUrl)
                                 .messageBody(message)
+                                .messageGroupId(finalGroupId)
+                                .messageDeduplicationId(String.valueOf(System.nanoTime()))
                                 .messageAttributes(Map.of(
                                         "failureReason", MessageAttributeValue.builder()
                                                 .dataType("String")
@@ -77,7 +91,7 @@ public class ExpirationSqsListener {
                                 ))
                                 .build())
                 )
-                .doOnSuccess(r -> log.warn("[DLQ] Mensaje enviado. Razón: {}", reason))
+                .doOnSuccess(r -> log.warn("[DLQ] Mensaje enviado a {}. Razón: {}", dlqUrl, reason))
                 .doOnError(e -> log.error("[DLQ ERROR] No se pudo enviar a DLQ: {}", e.getMessage()))
                 .then();
     }

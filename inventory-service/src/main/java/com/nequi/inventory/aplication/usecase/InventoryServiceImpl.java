@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -52,12 +53,8 @@ public class InventoryServiceImpl implements InventoryService {
                 .collect(Collectors.toSet());
     }
 
-    private boolean isRetryable(Throwable e) {
-        return !(e instanceof BusinessException);
-    }
-
     @Override
-    public Mono<Void> confirm(EventId eventId, Set<TicketId> tickets) {
+    public Mono<Void> confirm(EventId eventId, List<TicketId> tickets, OrderId orderId) {
         return eventRepository.existsById(eventId.value())
                 .flatMap(exists -> {
                     if (!exists) return Mono.error(new BusinessException("EVENT_NOT_FOUND", "Evento inexistente"));
@@ -66,11 +63,12 @@ public class InventoryServiceImpl implements InventoryService {
                             .map(TicketId::value)
                             .collect(Collectors.toSet());
 
-                    return ticketRepository.confirmAll(eventId, ticketIds);
+                    return ticketRepository.confirmAll(eventId, ticketIds,orderId);
                 })
                 .retryWhen(Retry.backoff(3, Duration.ofMillis(200))
                         .filter(throwable -> !(throwable instanceof BusinessException))
                 )
+                .flatMap(sqsInventoryPublisher::publishInventoryResponse)
                 .then();
     }
 
@@ -89,7 +87,7 @@ public class InventoryServiceImpl implements InventoryService {
         return Flux.fromIterable(ticketIds)
                 .flatMap(ticketId -> releaseTicket(ticketId, orderId)
                                 .retryWhen(Retry.backoff(3, Duration.ofMillis(200))
-                                        .filter(e -> !(e instanceof BusinessException)) // solo reintenta errores técnicos
+                                        .filter(e -> !(e instanceof BusinessException))
                                         .doBeforeRetry(signal -> log.warn(
                                                 "[RELEASE_RETRY] Ticket: {} intento: {}",
                                                 ticketId.value(), signal.totalRetries()
@@ -107,17 +105,20 @@ public class InventoryServiceImpl implements InventoryService {
 
     private Mono<Void> releaseTicket(TicketId ticketId, OrderId orderId) {
         return ticketRepository.findById(ticketId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("[RELEASE_SKIP] Ticket {}", ticketId.value());
+                    return Mono.empty();
+                }))
                 .flatMap(ticket -> {
                     if (!ticket.canBeReleasedBy(orderId)) {
-                        log.warn("[RELEASE_SKIP] Ticket {} no pertenece a orden {}",
+                        log.warn("[RELEASE_SKIP] Ticket {} no pertenece a la orden {}",
                                 ticketId.value(), orderId.value());
                         return Mono.empty();
                     }
                     ticket.expire();
-                    return ticketRepository.save(ticket).then();
-                })
-                .switchIfEmpty(Mono.fromRunnable(() ->
-                        log.warn("[RELEASE_SKIP] Ticket {} no encontrado", ticketId.value())
-                ));
+                    return ticketRepository.save(ticket)
+                            .doOnSuccess(saved -> log.info("[DB] Ticket {} actualizado a EXPIRED", saved.getTicketId().value()))
+                            .then();
+                });
     }
 }

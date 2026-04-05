@@ -20,6 +20,7 @@ public enum TicketStatus {
         public TicketStatus transition(TicketEvent event) {
             return switch (event) {
                 case START_PAYMENT                      -> PENDING_CONFIRMATION;
+                case CONFIRM_PAYMENT                    -> SOLD;
                 case CANCEL_RESERVATION,
                      EXPIRE_RESERVATION                 -> AVAILABLE;
                 default -> reject(event);

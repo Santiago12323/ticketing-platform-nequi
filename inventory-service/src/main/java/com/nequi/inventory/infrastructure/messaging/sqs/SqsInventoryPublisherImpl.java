@@ -47,13 +47,14 @@ public class SqsInventoryPublisherImpl implements SqsInventoryPublisher {
     }
 
     private Mono<SendMessageResponse> sendMessage(String body, InventoryResponse response) {
-        String orderId = response.orderId();
-
+        String orderIdValue = response.orderId();
+        String typeValue = response.type().name();
+        String deduplicationId = orderIdValue + ":" + typeValue;
         SendMessageRequest request = SendMessageRequest.builder()
                 .queueUrl(properties.getSqs().getResponseQueueUrl())
                 .messageBody(body)
-                .messageDeduplicationId(orderId)
-                .messageGroupId(orderId)
+                .messageDeduplicationId(deduplicationId)
+                .messageGroupId(orderIdValue)
                 .messageAttributes(Map.of(
                         "eventType", MessageAttributeValue.builder()
                                 .dataType("String")
@@ -61,15 +62,15 @@ public class SqsInventoryPublisherImpl implements SqsInventoryPublisher {
                                 .build(),
                         "orderId", MessageAttributeValue.builder()
                                 .dataType("String")
-                                .stringValue(orderId)
+                                .stringValue(orderIdValue)
                                 .build()
                 ))
                 .build();
 
         return Mono.fromFuture(() -> sqsClient.sendMessage(request))
-                .doOnSubscribe(s -> log.info("Enviando InventoryResponse SQS orderId={}", orderId))
-                .doOnSuccess(resp -> log.info("SQS enviado orderId={} messageId={}", orderId, resp.messageId()))
-                .doOnError(e -> log.error("Error enviando SQS orderId={}", orderId, e));
+                .doOnSubscribe(s -> log.info("Enviando InventoryResponse SQS orderId={}", orderIdValue))
+                .doOnSuccess(resp -> log.info("SQS enviado orderId={} messageId={}", orderIdValue, resp.messageId()))
+                .doOnError(e -> log.error("Error enviando SQS orderId={}", orderIdValue, e));
     }
 
     private Retry retrySpec(String orderId) {
