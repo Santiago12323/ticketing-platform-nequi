@@ -20,7 +20,7 @@ public interface TicketRepository {
 
     Mono<InventoryResponse> reserveAll(EventId eventId, Set<String> ticketIds, OrderId orderId);
 
-    Mono<Void> confirmAll(EventId eventId, Set<String> ticketIds);
+    Mono<InventoryResponse> confirmAll(EventId eventId, Set<String> ticketIds, OrderId orderId);
 
     Mono<Boolean> isAvailable(EventId eventId, String ticketId);
 

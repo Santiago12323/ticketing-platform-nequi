@@ -28,12 +28,18 @@ public class Ticket {
     private Instant createdAt;
     private Instant updatedAt;
 
+
+
     public static Ticket create(TicketId ticketId, EventId eventId) {
         Ticket ticket    = new Ticket(ticketId, eventId);
         ticket.status    = TicketStatus.AVAILABLE;
         ticket.createdAt = Instant.now();
         ticket.updatedAt = ticket.createdAt;
         return ticket;
+    }
+
+    public void setOrderId(OrderId orderId) {
+        this.orderId = orderId;
     }
 
     public boolean canBeReleasedBy(OrderId orderId) {
@@ -70,6 +76,14 @@ public class Ticket {
 
     public void reserve(Event event) {
         validateEvent(event);
+        if (this.status != TicketStatus.AVAILABLE) {
+
+            throw new BusinessException(
+                    "TICKET_NOT_AVAILABLE",
+                    "El ticket " + ticketId.value() + " ya se encuentra en estado: " + this.status
+            );
+        }
+
         apply(TicketEvent.RESERVE);
     }
 

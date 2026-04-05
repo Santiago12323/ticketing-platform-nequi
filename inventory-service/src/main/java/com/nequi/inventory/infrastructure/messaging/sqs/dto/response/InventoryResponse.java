@@ -1,18 +1,23 @@
 package com.nequi.inventory.infrastructure.messaging.sqs.dto.response;
 
-
+import com.nequi.inventory.infrastructure.messaging.sqs.enums.Type;
 import java.util.List;
 
 public record InventoryResponse(
         String orderId,
         boolean success,
-        List<String> failedTicketIds
+        List<String> failedTicketId,
+        Type type
 ) {
-    public static InventoryResponse success(String orderId) {
-        return new InventoryResponse(orderId, true, java.util.List.of());
+    public InventoryResponse {
+        failedTicketId = (failedTicketId == null) ? List.of() : failedTicketId;
     }
 
-    public static InventoryResponse failure(String orderId, java.util.List<String> failed) {
-        return new InventoryResponse(orderId, false, failed);
+    public static InventoryResponse success(String orderId, Type type) {
+        return new InventoryResponse(orderId, true, List.of(), type);
+    }
+
+    public static InventoryResponse failure(String orderId, List<String> failed, Type type) {
+        return new InventoryResponse(orderId, false, failed, type);
     }
 }

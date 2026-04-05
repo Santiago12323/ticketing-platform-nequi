@@ -33,6 +33,7 @@ spring:
 
       redis:
         orders-stream: orders
+        payments-stream: payment
 
 app:
   messaging:

@@ -1,13 +1,14 @@
 package com.nequi.inventory.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sns.SnsAsyncClient;
 
 import java.net.URI;
-
+@Configuration
 public class SnsConfig {
     @Bean
     public SnsAsyncClient snsAsyncClient() {

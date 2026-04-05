@@ -1,4 +1,4 @@
-package com.nequi.ticketing_service.infrastructure.messaging.redis;
+package com.nequi.ticketing_service.infrastructure.messaging.redis.Order;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.port.out.RedisOrderIngestor;

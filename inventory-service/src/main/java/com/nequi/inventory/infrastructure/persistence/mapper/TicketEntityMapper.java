@@ -2,6 +2,7 @@ package com.nequi.inventory.infrastructure.persistence.mapper;
 
 import com.nequi.inventory.domain.model.Ticket;
 import com.nequi.inventory.domain.valueobject.EventId;
+import com.nequi.inventory.domain.valueobject.OrderId;
 import com.nequi.inventory.domain.valueobject.TicketId;
 import com.nequi.inventory.infrastructure.persistence.dynamo.entity.TicketEntity;
 import org.mapstruct.Mapper;
@@ -12,7 +13,7 @@ import java.time.Instant;
 public interface TicketEntityMapper {
 
     @Mapping(target = "ticketId",  expression = "java(ticket.getTicketId().value())")
-    @Mapping(target = "orderId",  expression = "java(ticket.getOrderId.value())")
+    @Mapping(target = "orderId",   expression = "java(ticket.getOrderId() != null ? ticket.getOrderId().value() : null)")
     @Mapping(target = "eventId",   expression = "java(ticket.getEventId().value())")
     @Mapping(target = "createdAt", expression = "java(ticket.getCreatedAt() != null ? ticket.getCreatedAt().toString() : null)")
     @Mapping(target = "updatedAt", expression = "java(ticket.getUpdatedAt() != null ? ticket.getUpdatedAt().toString() : null)")
@@ -26,7 +27,7 @@ public interface TicketEntityMapper {
                 new EventId(entity.getEventId()),
                 entity.getStatus(),
                 entity.getUserId(),
-                entity.getOrderId(),
+                entity.getOrderId() != null ? new OrderId(entity.getOrderId()) : null,
                 entity.getExpiresAt(),
                 entity.getVersion(),
                 entity.getCreatedAt() != null ? Instant.parse(entity.getCreatedAt()) : null,

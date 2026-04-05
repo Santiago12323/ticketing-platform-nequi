@@ -9,6 +9,9 @@ import java.util.List;
 public interface OrderUseCase {
     Mono<OrderId> create(UserId userId, EventId eventId, Money totalPrice, List<String> seatIds);
 
+    Mono<OrderId> confirmAll(UserId userId, EventId eventId, Money totalPrice,
+                             List<String> seatIds, OrderId orderId);
+
     Mono<Order> getById(OrderId id);
 
     Mono<Void> expireOrder(OrderId orderId);

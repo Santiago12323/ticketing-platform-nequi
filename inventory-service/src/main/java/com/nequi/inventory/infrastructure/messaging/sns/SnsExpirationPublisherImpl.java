@@ -39,6 +39,7 @@ public class SnsExpirationPublisherImpl implements ExpirationPublisher {
                 .then();
     }
 
+
     private Mono<String> buildPayload(OrderId orderId, EventId eventId, Set<TicketId> ticketIds) {
         return Mono.fromCallable(() -> {
             var rawTicketIds = ticketIds.stream().map(TicketId::value).toList();

@@ -2,6 +2,7 @@ package com.nequi.ticketing_service.infrastructure.web.handler;
 
 import com.nequi.ticketing_service.domain.port.in.OrderUseCase;
 import com.nequi.ticketing_service.domain.valueobject.*;
+import com.nequi.ticketing_service.infrastructure.web.dto.request.ConfirmPaymentRequest;
 import com.nequi.ticketing_service.infrastructure.web.dto.request.CreateOrderRequest;
 import com.nequi.ticketing_service.infrastructure.web.dto.response.CreateOrderResponse;
 import com.nequi.ticketing_service.infrastructure.web.dto.response.OrderStatusResponse;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -27,6 +30,19 @@ public class OrderHandler {
                 ))
                 .flatMap(orderId -> ServerResponse.accepted()
                         .bodyValue(new CreateOrderResponse(orderId.value(), "PENDING_PROCESSING")));
+    }
+
+    public Mono<ServerResponse> confirmPayment(ServerRequest request) {
+        return request.bodyToMono(ConfirmPaymentRequest.class)
+                .flatMap(dto -> orderUseCase.confirmAll(
+                        UserId.of(dto.userId()),
+                        EventId.of(dto.eventId()),
+                        Money.of(dto.amount(), dto.currency()),
+                        dto.seatIds(),
+                        OrderId.of(dto.orderId())
+                ))
+                .flatMap(orderId -> ServerResponse.ok()
+                        .bodyValue(new CreateOrderResponse(orderId.value(), "PAYMENT_IN_PROGRESS")));
     }
 
     public Mono<ServerResponse> getStatus(ServerRequest request) {
