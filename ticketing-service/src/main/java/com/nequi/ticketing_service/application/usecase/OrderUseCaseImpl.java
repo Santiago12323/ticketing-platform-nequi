@@ -64,6 +64,7 @@ public class OrderUseCaseImpl implements OrderUseCase {
     public Mono<Order> getById(OrderId id) {
         String cacheKey = "order:cache:" + id.value();
 
+
         return redisTemplate.opsForValue().get(cacheKey)
                 .flatMap(this::deserialize)
                 .switchIfEmpty(Mono.defer(() -> fetchFromDbAndCache(id, cacheKey)))
