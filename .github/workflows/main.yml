@@ -1,4 +1,4 @@
-name: "nequi test"
+name: "Senior GitOps: Amazon Corretto 25 - Nequi Edition"
 
 on:
   push:
@@ -33,14 +33,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Dependency Check (SCA)
-        uses: jeremylong/DependencyCheck.action@main
-        with:
-          project: 'Ticketing-Platform'
-          path: '.'
-          format: 'HTML'
-          out: 'reports'
+      - name: Dependency Check (Docker Mode)
         continue-on-error: true
+        run: |
+          mkdir -p reports
+          docker run --rm \
+            -v ${{ github.workspace }}:/src \
+            -v ${{ github.workspace }}/reports:/report \
+            owasp/dependency-check:latest \
+            --project "Ticketing-Platform" \
+            --scan /src \
+            --format "HTML" \
+            --out /report
 
   build-and-verify:
     name: "Build & Jacoco: Java 25"
@@ -85,17 +89,14 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
       - name: AWS Login Simulation
         run: |
-          echo "Intentando conexión con AWS ECR..."
+          echo "Simulando login en Amazon ECR..."
           exit 1
       - name: Push Image Simulation
-        run: |
-          echo "Subiendo imagen a Amazon ECR..."
-      - name: ECS Update Service
-        run: |
-          echo "Actualizando servicio en Fargate..."
+        run: echo "Simulando push de imagen..."
+      - name: ECS Update Simulation
+        run: echo "Simulando actualización de Fargate..."
 
   dast-scan:
     name: "Security: DAST Scan"
