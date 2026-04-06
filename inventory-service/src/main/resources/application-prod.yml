@@ -1,27 +1,54 @@
-ticketing:
-  statemachine:
-    audit-enabled: false
-
-aws:
-  region: ${AWS_REGION}
-  access-key: ${AWS_ACCESS_KEY_ID}
-  secret-key: ${AWS_SECRET_ACCESS_KEY}
-  dynamodb:
-    table-orders: ${DYNAMODB_TABLE_ORDERS:orders}
-    table-events: ${DYNAMODB_TABLE_EVENTS:events}
-    table-inventory: ${DYNAMODB_TABLE_INVENTORY:inventory}
-    table-outbox: ${DYNAMODB_TABLE_OUTBOX:outbox}
-  sqs:
-    queue-url: ${SQS_QUEUE_URL}
-    dead-letter-queue-url: ${SQS_DLQ_URL}
-
 spring:
-  redis:
-    host: ${REDIS_HOST}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD}
+  cloud:
+    aws:
+      region:
+        static: us-west-2
+
+      credentials:
+
+      
+      sqs:
+        inventory-request-queue: ${INVENTORY_REQUEST_QUEUE_URL}
+        inventory-response-queue: ${INVENTORY_RESPONSE_QUEUE_URL}
+        inventory-request-dlq: ${INVENTORY_REQUEST_DLQ_URL}
+        order-ttl-queue: ${ORDER_TTL_QUEUE_URL}
+        inventory-ttl-queue: ${INVENTORY_TTL_QUEUE_URL}
+
+      sns:
+        order-expiration-topic: ${ORDER_EXPIRATION_TOPIC_ARN}
+
+      dynamodb:
+        idempotency-table: ${IDEMPOTENCY_TABLE}
+        idempotency-ttl-seconds: 3600
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+app:
+  messaging:
+    sqs:
+      inventory-queue-url: ${INVENTORY_REQUEST_QUEUE_URL}
+      response-queue-url: ${INVENTORY_RESPONSE_QUEUE_URL}
+      message-group-id: order
+
+    retry:
+      max-attempts: 3
+      backoff-millis: 100
+
+    audit:
+      enabled: true
+
+ticketing:
+  cache:
+    ttl-minutes: 5
+
+  statemachine:
+    audit-enabled: true
 
 logging:
   level:
-    root: WARN
+    root: INFO
     com.nequi: INFO
