@@ -69,7 +69,7 @@ jobs:
           # Excluimos tags de infraestructura pesada para que el CI no falle por falta de DynamoDB/SQS
           mvn clean verify -Dmaven.compiler.release=25 -Dgroups="!integration"
 
-      - name: "Jacoco Gate: >85% Coverage"
+      - name: "Jacoco Gate: >90% Coverage"
         shell: bash
         run: |
           cd ${{ matrix.service }}
