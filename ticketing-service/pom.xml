@@ -140,12 +140,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.14</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.sonarsource.scanner.maven</groupId>
-                    <artifactId>sonar-maven-plugin</artifactId>
-                    <version>5.0.0.4389</version>
+                    <version>${jacoco.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -156,7 +151,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>25</release>
+                    <release>${java.version}</release>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -173,13 +168,18 @@
             </plugin>
 
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <argLine>@{argLine} -Xshare:off</argLine>
+                </configuration>
             </plugin>
 
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
@@ -196,19 +196,30 @@
                         <configuration>
                             <formats>
                                 <format>XML</format>
+                                <format>HTML</format>
                             </formats>
+                            <excludes>
+                                <exclude>com/nequi/ticketing_service/infrastructure/persistence/dynamo/entity/**</exclude>
+
+                                <exclude>com/nequi/ticketing_service/domain/valueobject/**</exclude>
+                                <exclude>com/nequi/ticketing_service/domain/exception/**</exclude>
+
+                                <exclude>com/nequi/ticketing_service/infrastructure/messaging/redis/utils/constans/**</exclude>
+
+                                <exclude>**/dto/**</exclude>
+                                <exclude>**/config/**</exclude>
+                                <exclude>**/TicketingServiceApplication*</exclude>
+                                <exclude>**/utils/MessagingProperties*</exclude>
+                                <exclude>**/mapper/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.0</version>
-                <configuration>
-                    <argLine>@{argLine} -Xshare:off</argLine>
-                </configuration>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
             <plugin>

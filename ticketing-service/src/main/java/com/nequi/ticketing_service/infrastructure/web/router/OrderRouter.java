@@ -7,9 +7,6 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
-import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
-import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
-
 @Configuration
 public class OrderRouter {
 
@@ -19,6 +16,7 @@ public class OrderRouter {
                 .POST("/orders", handler::create)
                 .GET("/orders/{id}", handler::getStatus)
                 .POST("/orders/confirm", handler::confirmPayment)
+                .GET("/orders/{id}/history", handler::getHistoryStream)
                 .build();
     }
 }

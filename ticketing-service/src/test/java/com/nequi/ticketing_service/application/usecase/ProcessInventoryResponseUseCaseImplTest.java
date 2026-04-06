@@ -1,8 +1,10 @@
 package com.nequi.ticketing_service.application.usecase;
 
 import com.nequi.ticketing_service.domain.model.order.Order;
+import com.nequi.ticketing_service.domain.port.out.OrderHistoryService;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.statemachine.OrderEvent;
+import com.nequi.ticketing_service.domain.statemachine.OrderStatus;
 import com.nequi.ticketing_service.domain.valueobject.OrderId;
 import com.nequi.ticketing_service.infrastructure.messaging.redis.utils.constans.CacheKeyGenerator;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +37,9 @@ class ProcessInventoryResponseUseCaseImplTest {
     @Mock
     private CacheKeyGenerator keyGenerator;
 
+    @Mock
+    private OrderHistoryService historyService;
+
     @InjectMocks
     private ProcessInventoryResponseUseCaseImpl processInventoryResponseUseCase;
 
@@ -47,8 +52,13 @@ class ProcessInventoryResponseUseCaseImplTest {
     void executeSuccessPath() {
         // Arrange
         Order orderMock = mock(Order.class);
+        when(orderMock.getStatus()).thenReturn(OrderStatus.PENDING_VALIDATION);
+
         when(repository.findById(VALID_ORDER_ID)).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
+
+        when(historyService.recordTimestamp(any(), any(), any(), anyString()))
+                .thenReturn(Mono.empty());
 
         when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -62,6 +72,7 @@ class ProcessInventoryResponseUseCaseImplTest {
 
         verify(orderMock).confirmInventory();
         verify(repository).updateStatus(orderMock);
+        verify(historyService).recordTimestamp(eq(VALID_ORDER_ID), any(), any(), anyString());
         verify(valueOperations).delete(CACHE_KEY);
     }
 
@@ -70,8 +81,13 @@ class ProcessInventoryResponseUseCaseImplTest {
     void executeFailurePath() {
         // Arrange
         Order orderMock = mock(Order.class);
+        when(orderMock.getStatus()).thenReturn(OrderStatus.PENDING_VALIDATION);
+
         when(repository.findById(VALID_ORDER_ID)).thenReturn(Mono.just(orderMock));
         when(repository.updateStatus(orderMock)).thenReturn(Mono.just(orderMock));
+
+        when(historyService.recordTimestamp(any(), any(), any(), anyString()))
+                .thenReturn(Mono.empty());
 
         when(keyGenerator.generateOrderKey(VALID_ORDER_ID.value())).thenReturn(CACHE_KEY);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -85,6 +101,7 @@ class ProcessInventoryResponseUseCaseImplTest {
 
         verify(orderMock).failInventory();
         verify(repository).updateStatus(orderMock);
+        verify(historyService).recordTimestamp(eq(VALID_ORDER_ID), any(), any(), anyString());
     }
 
     @Test
@@ -106,4 +123,6 @@ class ProcessInventoryResponseUseCaseImplTest {
         verify(orderMock).confirmInventory();
         verify(valueOperations, never()).delete(anyString());
     }
+
+
 }
