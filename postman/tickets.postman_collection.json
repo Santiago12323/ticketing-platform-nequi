@@ -1,0 +1,63 @@
+{
+  "info": {
+    "_postman_id": "6f9d1bea-f402-4d36-b5f0-3e4c21aa0059",
+    "name": "tickets",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "40826520",
+    "_collection_link": "https://go.postman.co/collection/40826520-6f9d1bea-f402-4d36-b5f0-3e4c21aa0059?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "avable ticket whit EventId",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "http://localhost:8081/tickets/stream/available/{eventId}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8081",
+          "path": [
+            "tickets",
+            "stream",
+            "available",
+            "{eventId}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Status ticket",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8081/events/{eventId}/tickets/{ticketId}/status",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8081",
+          "path": [
+            "events",
+            "{eventId}",
+            "tickets",
+            "{ticketId}",
+            "status"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

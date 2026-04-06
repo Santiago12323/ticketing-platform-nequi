@@ -1,0 +1,158 @@
+{
+  "info": {
+    "_postman_id": "33797596-dbd6-42e4-a9ff-b3faf468c8d3",
+    "name": "Orders",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "40826520",
+    "_collection_link": "https://go.postman.co/collection/40826520-33797596-dbd6-42e4-a9ff-b3faf468c8d3?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "create order",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"userId\": \"123e4567-e89b-12d3-a456-426614174000\",\r\n  \"eventId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\r\n  \"totalPrice\": 150.0,\r\n  \"currency\": \"USD\",\r\n  \"seatIds\": [\"ac5a8cb0-a853-444f-a594-94c387a3f357\"]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/orders",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "orders"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "order",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/orders/{orderId}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "orders",
+            "{orderId}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "pay order",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"userId\": \"user-12345\",\r\n  \"eventId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\r\n  \"amount\": 55000.0,\r\n  \"currency\": \"COP\",\r\n  \"orderId\": \"c56234fd-b834-4f31-ace4-952a22bce5ae\",\r\n    \"seatIds\": [\"ac5a8cb0-a853-444f-a594-94c387a3f357\"]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/orders/confirm",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "orders",
+            "confirm"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "History order",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"userId\": \"123e4567-e89b-12d3-a456-426614174000\",\r\n  \"eventId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\r\n  \"totalPrice\": 150.0,\r\n  \"currency\": \"USD\",\r\n  \"seatIds\": [\"c73445e7-5290-450a-8aba-15258e497d62\"]\r\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/orders/{orderId}/history",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "orders",
+            "{orderId}",
+            "history"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": ""
+    }
+  ]
+}
