@@ -55,7 +55,6 @@ class DynamoIdempotencyRepositoryTest {
         when(dynamoConstants.getIdempotencyTable()).thenReturn("IdempotencyTable");
         when(dynamoConstants.getIdempotencyTtlSeconds()).thenReturn(3600L);
 
-        // Corregido: casteo para Mockito
         when((DynamoDbAsyncTable<IdempotencyEntity>)(DynamoDbAsyncTable<?>) enhancedClient.table(anyString(), any(TableSchema.class)))
                 .thenReturn(table);
     }

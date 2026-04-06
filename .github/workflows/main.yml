@@ -1,0 +1,103 @@
+name: "Senior GitOps: Amazon Corretto 25 - Nequi Edition"
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  # 1. VALIDACIÓN DE INFRAESTRUCTURA (IaC)
+  terraform-audit:
+    name: "Audit: Terraform & IaC"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Terraform Validation
+        run: |
+          cd terraform
+          terraform init -backend=false # No necesitamos AWS real para validar
+          terraform validate
+      - name: Terraform Plan (Dry Run)
+        run: |
+          cd terraform
+          terraform plan -continue-on-error
+
+  # 2. SEGURIDAD DINÁMICA Y ESTÁTICA
+  security:
+    name: "Security: SCA & SAST"
+    needs: terraform-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency Check (OWASP)
+        uses: owasp/dependency-check-action@main
+        with:
+          project: 'Ticketing-Platform'
+          path: '.'
+          format: 'HTML'
+
+  # 3. BUILD, TEST & COVERAGE
+  build-and-verify:
+    name: "Build & Jacoco: Java 25"
+    needs: security
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [inventory-service, ticketing-service]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Amazon Corretto 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: Maven Verify (Unit & Integration)
+        run: |
+          cd ${{ matrix.service }}
+          # Usamos -Dmaven.compiler.release=25 para asegurar compatibilidad
+          mvn clean verify -Dmaven.compiler.release=25
+
+      - name: "Jacoco Gate: >85% Coverage"
+        run: |
+          cd ${{ matrix.service }}
+          # Script robusto para validar el CSV de Jacoco
+          if [ -f target/site/jacoco/jacoco.csv ]; then
+            COVERAGE=$(awk -F, '{ i += $4 + $5; m += $4 } END { if (i > 0) print (1 - m/i) * 100; else print 0 }' target/site/jacoco/jacoco.csv)
+            echo "Current Coverage for ${{ matrix.service }}: $COVERAGE%"
+            if (( $(echo "$COVERAGE < 85" | bc -l) )); then
+              echo "::error::Coverage $COVERAGE% is below 85% threshold."
+              exit 1
+            fi
+          else
+            echo "::error::Jacoco report not found. Build failed."
+            exit 1
+          fi
+
+  # 4. DAST
+  dast-scan:
+    name: "Security: DAST Scan"
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Java 25 for Runtime
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'corretto'
+
+      - name: Run Microservice Mock
+        run: |
+          cd ticketing-service/target
+          java -jar *.jar & 
+          sleep 40 # Java 25/Spring Boot Boot-up time
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:8080'
+          fail_action: false

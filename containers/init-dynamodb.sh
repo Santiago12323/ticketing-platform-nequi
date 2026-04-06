@@ -77,6 +77,25 @@ dynamo CreateTable '{
 echo ""
 
 # ─────────────────────────────────────────────
+# TABLE: OrderHistory
+# PK: orderId (HASH) | SK: createdAt (RANGE)
+# ─────────────────────────────────────────────
+echo ">>> Creating table: OrderHistory"
+dynamo CreateTable '{
+  "TableName": "OrderHistory",
+  "BillingMode": "PAY_PER_REQUEST",
+  "AttributeDefinitions": [
+    {"AttributeName": "orderId",   "AttributeType": "S"},
+    {"AttributeName": "createdAt", "AttributeType": "S"}
+  ],
+  "KeySchema": [
+    {"AttributeName": "orderId",   "KeyType": "HASH"},
+    {"AttributeName": "createdAt", "KeyType": "RANGE"}
+  ]
+}'
+echo ""
+
+# ─────────────────────────────────────────────
 # TABLE: Orders
 # ─────────────────────────────────────────────
 echo ">>> Creating table: Orders"

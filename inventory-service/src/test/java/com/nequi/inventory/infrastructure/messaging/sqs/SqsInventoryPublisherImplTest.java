@@ -12,7 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import reactor.core.Exceptions; // Importante para manejar excepciones reactivas
+import reactor.core.Exceptions;
 import reactor.test.StepVerifier;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -65,9 +65,7 @@ class SqsInventoryPublisherImplTest {
 
         StepVerifier.create(publisher.publishInventoryResponse(response))
                 .expectErrorSatisfies(throwable -> {
-                    // Usamos la utilidad pública de Reactor para verificar el tipo de error
                     assertTrue(Exceptions.isRetryExhausted(throwable));
-                    // Verificamos la causa raíz que nosotros lanzamos
                     assertTrue(throwable.getCause().getMessage().contains("Error serializing"));
                 })
                 .verify();
@@ -85,12 +83,10 @@ class SqsInventoryPublisherImplTest {
 
         StepVerifier.create(publisher.publishInventoryResponse(response))
                 .expectErrorSatisfies(throwable -> {
-                    // Verificamos que se agotaron los reintentos
                     assertTrue(Exceptions.isRetryExhausted(throwable));
                 })
                 .verify();
 
-        // Intento inicial (1) + MaxAttempts (1) = 2 llamadas totales
         verify(sqsClient, times(2)).sendMessage(any(SendMessageRequest.class));
     }
 

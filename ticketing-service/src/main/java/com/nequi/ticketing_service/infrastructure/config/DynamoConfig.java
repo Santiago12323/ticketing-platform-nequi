@@ -1,6 +1,7 @@
 package com.nequi.ticketing_service.infrastructure.config;
 
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
+import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderHistoryEntity; // Nueva importación
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,5 +50,10 @@ public class DynamoConfig {
     @Bean
     public DynamoDbAsyncTable<OrderEntity> orderTable(DynamoDbEnhancedAsyncClient enhancedClient) {
         return enhancedClient.table("Orders", TableSchema.fromBean(OrderEntity.class));
+    }
+
+    @Bean
+    public DynamoDbAsyncTable<OrderHistoryEntity> orderHistoryTable(DynamoDbEnhancedAsyncClient enhancedClient) {
+        return enhancedClient.table("OrderHistory", TableSchema.fromBean(OrderHistoryEntity.class));
     }
 }

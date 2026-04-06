@@ -1,12 +1,15 @@
 package com.nequi.ticketing_service.infrastructure.web.handler;
 
 import com.nequi.ticketing_service.domain.port.in.OrderUseCase;
+import com.nequi.ticketing_service.domain.port.out.OrderHistoryService;
 import com.nequi.ticketing_service.domain.valueobject.*;
+import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderHistoryEntity;
 import com.nequi.ticketing_service.infrastructure.web.dto.request.ConfirmPaymentRequest;
 import com.nequi.ticketing_service.infrastructure.web.dto.request.CreateOrderRequest;
 import com.nequi.ticketing_service.infrastructure.web.dto.response.CreateOrderResponse;
 import com.nequi.ticketing_service.infrastructure.web.dto.response.OrderStatusResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -19,6 +22,7 @@ import java.util.List;
 public class OrderHandler {
 
     private final OrderUseCase orderUseCase;
+    private final OrderHistoryService historyService;
 
     public Mono<ServerResponse> create(ServerRequest request) {
         return request.bodyToMono(CreateOrderRequest.class)
@@ -55,5 +59,13 @@ public class OrderHandler {
                                 order.getStatus().name(),
                                 order.getUpdatedAt()
                         )));
+    }
+
+    public Mono<ServerResponse> getHistoryStream(ServerRequest request) {
+        String orderId = request.pathVariable("id");
+
+        return ServerResponse.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(historyService.getHistory(OrderId.of(orderId)), OrderHistoryEntity.class);
     }
 }
