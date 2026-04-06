@@ -175,11 +175,16 @@
 					</execution>
 					<execution>
 						<id>report</id>
-						<phase>test</phase>
+						<phase>verify</phase>
 						<goals>
 							<goal>report</goal>
 						</goals>
 						<configuration>
+							<formats>
+								<format>CSV</format>
+								<format>XML</format>
+								<format>HTML</format>
+							</formats>
 							<excludes>
 								<exclude>com/nequi/inventory/domain/statemachine/machine/TicketStateMachineListener.class</exclude>
 								<exclude>com/nequi/inventory/domain/statemachine/config/**</exclude>
@@ -212,7 +217,7 @@
 										<limit>
 											<counter>LINE</counter>
 											<value>COVEREDRATIO</value>
-											<minimum>0.20</minimum>
+											<minimum>0.85</minimum>
 										</limit>
 									</limits>
 								</rule>

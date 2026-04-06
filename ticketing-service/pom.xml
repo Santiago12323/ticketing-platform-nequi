@@ -189,21 +189,19 @@
                     </execution>
                     <execution>
                         <id>report</id>
-                        <phase>test</phase>
+                        <phase>verify</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
                         <configuration>
                             <formats>
-                                <format>XML</format>
+                                <format>CSV</format> <format>XML</format>
                                 <format>HTML</format>
                             </formats>
                             <excludes>
                                 <exclude>com/nequi/ticketing_service/infrastructure/persistence/dynamo/entity/**</exclude>
-
                                 <exclude>com/nequi/ticketing_service/domain/valueobject/**</exclude>
                                 <exclude>com/nequi/ticketing_service/domain/exception/**</exclude>
-
                                 <exclude>com/nequi/ticketing_service/infrastructure/messaging/redis/utils/constans/**</exclude>
 
                                 <exclude>**/dto/**</exclude>
@@ -211,6 +209,8 @@
                                 <exclude>**/TicketingServiceApplication*</exclude>
                                 <exclude>**/utils/MessagingProperties*</exclude>
                                 <exclude>**/mapper/**</exclude>
+
+                                <exclude>**/infrastructure/web/router/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>

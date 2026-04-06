@@ -75,6 +75,15 @@ docker-compose logs -f localstack
 # Limpiar el entorno y borrar datos persistidos
 docker-compose down -v
 ```
+---
+
+## Stack Tecnológico
+* **Lenguaje:** Java 25 (Uso de Records, Sealed Classes y Pattern Matching).
+* **Framework:** Spring Boot 4.x & WebFlux (Handlers/Routers funcionales).
+* **Persistencia:** DynamoDB (NoSQL de alta escala).
+* **Mensajería:** AWS SQS & SNS (vía LocalStack).
+* **Cache/Streaming:** Redis 7.2.
+* **IaC:** **Terraform** (Arquitectura modular con `main.tf`, `variables.tf` y `outputs.tf`).
 
 ---
 ##  Postman Collections
@@ -220,21 +229,7 @@ Basado en los hallazgos de **k6**, se identifican las siguientes rutas de escala
 1.  **Horizontal Scaling:** Implementar auto-escalado en **AWS ECS Fargate** basado en la métrica de latencia P95 cuando esta supere los 500ms.
 2.  **R2DBC Connection Pooling:** Optimizar el pool de conexiones reactivas para reducir la contención de I/O en la persistencia durante ráfagas de tráfico.
 
-
-
 ---
-
-## Stack Tecnológico
-* **Lenguaje:** Java 25 (Uso de Records, Sealed Classes y Pattern Matching).
-* **Framework:** Spring Boot 4.x & WebFlux (Handlers/Routers funcionales).
-* **Persistencia:** DynamoDB (NoSQL de alta escala).
-* **Mensajería:** AWS SQS & SNS (vía LocalStack).
-* **Cache/Streaming:** Redis 7.2.
-* **IaC:** **Terraform** (Arquitectura modular con `main.tf`, `variables.tf` y `outputs.tf`).
-
----
-
-## Despliegue 
 
 ##  Roadmap y Escalabilidad Cloud
 
@@ -260,3 +255,42 @@ El sistema está preparado para una operación transparente en la nube:
 ### diagrama de arquitectura aws
 
 ![arquitecturaAws.png](images/arquitecturaAws.png)
+
+## Despliegue
+
+## CI/CD Pipeline de Despliegue a Producción
+
+Este proyecto cuenta con un pipeline de CI/CD orientado a despliegue en producción, diseñado bajo prácticas de **DevSecOps**, garantizando calidad, seguridad y confiabilidad antes de liberar cualquier cambio.
+
+El flujo de despliegue se compone de las siguientes fases:
+
+### 1. Validación de Infraestructura (Infrastructure as Code)
+Se ejecutan procesos de validación sobre la infraestructura definida en Terraform (`init`, `validate`, `plan`), asegurando que los recursos en la nube sean consistentes y estén correctamente configurados antes de cualquier despliegue.
+
+### 2. Análisis de Seguridad de Dependencias (SCA)
+Se realiza un escaneo de dependencias para identificar vulnerabilidades conocidas (CVE), reduciendo riesgos asociados a librerías de terceros.
+
+### 3. Construcción, Pruebas y Control de Calidad
+Se compilan los microservicios y se ejecutan pruebas automatizadas. Como criterio obligatorio, se valida que la cobertura de código mediante JaCoCo sea superior al **90%**, garantizando un alto nivel de calidad y testeo.
+
+### 4. Seguridad en Ejecución y Preparación de Despliegue
+Se ejecutan pruebas de seguridad dinámicas (DAST), simulando ataques sobre la aplicación en ejecución para detectar vulnerabilidades en tiempo real. Adicionalmente, se valida el flujo de despliegue hacia AWS (ECR y ECS).
+
+---
+
+## Flujo del Pipeline
+
+```text
+Commit / Pull Request
+        ↓
+Validación de Infraestructura (Terraform)
+        ↓
+Análisis de Seguridad (SCA)
+        ↓
+Build + Tests + Cobertura (JaCoCo > 90%)
+        ↓
+Pruebas de Seguridad Dinámicas (DAST)
+        ↓
+Despliegue a Producción (AWS)
+```
+
