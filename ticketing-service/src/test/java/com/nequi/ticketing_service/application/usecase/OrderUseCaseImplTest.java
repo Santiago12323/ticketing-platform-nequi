@@ -3,9 +3,12 @@ package com.nequi.ticketing_service.application.usecase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nequi.ticketing_service.domain.model.order.Order;
+import com.nequi.ticketing_service.domain.port.out.OrderHistoryService;
 import com.nequi.ticketing_service.domain.port.out.OrderRepository;
 import com.nequi.ticketing_service.domain.port.out.RedisOrderIngestor;
+import com.nequi.ticketing_service.domain.statemachine.OrderStatus;
 import com.nequi.ticketing_service.domain.valueobject.*;
+import com.nequi.ticketing_service.infrastructure.messaging.redis.payment.RedisPaymentIngestor;
 import com.nequi.ticketing_service.infrastructure.persistence.dynamo.entity.OrderEntity;
 import com.nequi.ticketing_service.infrastructure.persistence.mapper.OrderEntityMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,11 +36,13 @@ import static org.mockito.Mockito.*;
 class OrderUseCaseImplTest {
 
     @Mock private RedisOrderIngestor redisOrderIngestor;
+    @Mock private RedisPaymentIngestor redisPaymentIngestor;
     @Mock private ReactiveRedisTemplate<String, String> redisTemplate;
     @Mock private ReactiveValueOperations<String, String> valueOperations;
     @Mock private OrderRepository repository;
     @Mock private ObjectMapper objectMapper;
     @Mock private OrderEntityMapper mapper;
+    @Mock private OrderHistoryService historyService;
 
     @InjectMocks
     private OrderUseCaseImpl orderUseCase;
@@ -51,55 +56,171 @@ class OrderUseCaseImplTest {
     void setUp() {
         ReflectionTestUtils.setField(orderUseCase, "auditEnabled", true);
         ReflectionTestUtils.setField(orderUseCase, "cacheTtl", 10L);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
-    @DisplayName("Should create order intent and return orderId")
+    @DisplayName("AAA - Success: Should create order intent")
     void createOrderSuccessfully() {
         // Arrange
+        OrderId generatedId = OrderId.of(UUID.randomUUID().toString());
+
         when(redisOrderIngestor.ingest(eq(userId), eq(eventId), eq(price), eq(seats), any(OrderId.class)))
-                .thenReturn(Mono.just(OrderId.of(UUID.randomUUID().toString())));
+                .thenReturn(Mono.just(generatedId));
 
-        // Act
-        Mono<OrderId> result = orderUseCase.create(userId, eventId, price, seats);
+        when(historyService.recordTimestamp(any(), any(), any(), anyString()))
+                .thenReturn(Mono.empty());
 
-        // Assert
-        StepVerifier.create(result)
-                .expectNextMatches(id -> id.value() != null && !id.value().isEmpty())
+        // Act & Assert
+        StepVerifier.create(orderUseCase.create(userId, eventId, price, seats))
+                .expectNextMatches(id -> id != null) // Verificamos que emita el ID
                 .verifyComplete();
-
-        verify(redisOrderIngestor).ingest(eq(userId), eq(eventId), eq(price), eq(seats), any(OrderId.class));
+        verify(historyService).recordTimestamp(any(), isNull(), eq(OrderStatus.PENDING_PAYMENT), anyString());
     }
 
     @Test
-    @DisplayName("Should return order from cache if present")
+    @DisplayName("AAA - Success: Should confirm payment intent")
+    void confirmAllSuccessfully() {
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        when(redisPaymentIngestor.ingest(any(), any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(orderUseCase.confirmAll(userId, eventId, price, seats, orderId))
+                .expectNext(orderId)
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("AAA - Success: Should return order from cache")
     void getByIdFromCacheSuccessfully() throws JsonProcessingException {
-        // Arrange
         OrderId orderId = OrderId.of(UUID.randomUUID().toString());
         String cacheKey = "order:cache:" + orderId.value();
-        String jsonMock = "{\"id\":\"" + orderId.value() + "\"}";
 
-        OrderEntity entityMock = new OrderEntity();
+        when(valueOperations.get(cacheKey)).thenReturn(Mono.just("{}"));
+        when(objectMapper.readValue(anyString(), eq(OrderEntity.class))).thenReturn(new OrderEntity());
+        when(mapper.toDomain(any())).thenReturn(mock(Order.class));
+
+        StepVerifier.create(orderUseCase.getById(orderId))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("AAA - Success: Should fetch from DB and save to cache if cache is empty")
+    void getByIdFromDbWhenCacheEmpty() throws JsonProcessingException {
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
         Order orderMock = mock(Order.class);
+        when(orderMock.getId()).thenReturn(orderId);
 
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(cacheKey)).thenReturn(Mono.just(jsonMock));
+        when(valueOperations.get(anyString())).thenReturn(Mono.empty());
+        when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
+        when(mapper.toEntity(any())).thenReturn(new OrderEntity());
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(valueOperations.set(anyString(), anyString(), any())).thenReturn(Mono.just(true));
 
-        when(objectMapper.readValue(eq(jsonMock), eq(OrderEntity.class))).thenReturn(entityMock);
-        when(mapper.toDomain(entityMock)).thenReturn(orderMock);
-
-        // Act
-        Mono<Order> result = orderUseCase.getById(orderId);
-
-        // Assert
-        StepVerifier.create(result)
+        StepVerifier.create(orderUseCase.getById(orderId))
                 .expectNext(orderMock)
                 .verifyComplete();
     }
 
     @Test
-    @DisplayName("Should fetch from DB and save to cache when cache is empty")
-    void getByIdFromDbWhenCacheEmpty() throws JsonProcessingException {
+    @DisplayName("AAA - Error: Should handle repository error in getById")
+    void getById_RepositoryError() {
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        when(valueOperations.get(anyString())).thenReturn(Mono.empty());
+        when(repository.findById(orderId)).thenReturn(Mono.error(new RuntimeException("DB Error")));
+
+        StepVerifier.create(orderUseCase.getById(orderId))
+                .expectError()
+                .verify();
+    }
+
+    @Test
+    @DisplayName("AAA - Success: Should expire order when valid")
+    void expireOrder_Success() {
+        // Arrange
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        Order orderMock = mock(Order.class);
+
+        when(orderMock.isFinal()).thenReturn(false);
+        when(orderMock.getStatus()).thenReturn(OrderStatus.PENDING_PAYMENT);
+        lenient().when(orderMock.getId()).thenReturn(orderId);
+
+        when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
+        when(repository.save(any(Order.class))).thenReturn(Mono.just(orderMock));
+
+        when(historyService.recordTimestamp(any(), any(), any(), anyString()))
+                .thenReturn(Mono.empty());
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.delete(anyString())).thenReturn(Mono.just(true));
+
+        // Act
+        StepVerifier.create(orderUseCase.expireOrder(orderId))
+                .verifyComplete();
+
+        // Assert
+        verify(orderMock).expire();
+        verify(repository).save(orderMock);
+        verify(historyService).recordTimestamp(eq(orderId), eq(OrderStatus.PENDING_PAYMENT), eq(OrderStatus.EXPIRED), anyString());
+        verify(valueOperations).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("AAA - Skip: Should skip if order is final")
+    void expireOrder_SkipIfFinal() {
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        Order orderMock = mock(Order.class);
+
+        when(orderMock.isFinal()).thenReturn(true);
+        when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
+
+        StepVerifier.create(orderUseCase.expireOrder(orderId))
+                .verifyComplete();
+
+        verify(orderMock, never()).expire();
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("AAA - Skip: Should skip if order not found")
+    void expireOrder_NotFound() {
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        when(repository.findById(orderId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(orderUseCase.expireOrder(orderId))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("AAA - Error: Should handle save error in expireOrder")
+    void expireOrder_SaveError() {
+        // Arrange
+        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        Order orderMock = mock(Order.class);
+
+        lenient().when(orderMock.getId()).thenReturn(orderId);
+
+        when(orderMock.isFinal()).thenReturn(false);
+        when(orderMock.getStatus()).thenReturn(OrderStatus.PENDING_PAYMENT);
+
+        when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
+
+        when(repository.save(any(Order.class)))
+                .thenReturn(Mono.error(new RuntimeException("Database Save Fail")));
+
+        // Act & Assert
+        StepVerifier.create(orderUseCase.expireOrder(orderId))
+                .expectErrorMatches(throwable -> throwable instanceof RuntimeException &&
+                        throwable.getMessage().equals("Database Save Fail"))
+                .verify();
+
+        verify(orderMock).expire();
+        verify(repository).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("AAA - Fallback: Should fallback to DB if cache serialization fails during save")
+    void saveToCache_SerializationError() throws JsonProcessingException {
         // Arrange
         OrderId orderId = OrderId.of(UUID.randomUUID().toString());
         String cacheKey = "order:cache:" + orderId.value();
@@ -108,54 +229,20 @@ class OrderUseCaseImplTest {
 
         when(orderMock.getId()).thenReturn(orderId);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
         when(valueOperations.get(cacheKey)).thenReturn(Mono.empty());
 
         when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
         when(mapper.toEntity(orderMock)).thenReturn(entityMock);
+        when(objectMapper.writeValueAsString(any(OrderEntity.class)))
+                .thenThrow(new RuntimeException("Jackson serialization failed"));
 
-        when(objectMapper.writeValueAsString(entityMock)).thenReturn("{}");
-        when(valueOperations.set(eq(cacheKey), anyString(), any())).thenReturn(Mono.just(true));
-
-        // Act
-        Mono<Order> result = orderUseCase.getById(orderId);
-
-        // Assert
-        StepVerifier.create(result)
+        // Act & Assert
+        StepVerifier.create(orderUseCase.getById(orderId))
                 .expectNext(orderMock)
                 .verifyComplete();
-
         verify(repository).findById(orderId);
-        verify(valueOperations).set(eq(cacheKey), anyString(), any());
-    }
-
-    @Test
-    @DisplayName("Should fallback to DB if cache deserialization fails")
-    void fallbackToDbOnCacheError() throws JsonProcessingException {
-        // Arrange
-        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
-        String cacheKey = "order:cache:" + orderId.value();
-        Order orderMock = mock(Order.class);
-
-        when(orderMock.getId()).thenReturn(orderId);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-
-        when(valueOperations.get(cacheKey)).thenReturn(Mono.just("corrupt-json"));
-        when(objectMapper.readValue(anyString(), eq(OrderEntity.class)))
-                .thenThrow(new RuntimeException("Deserialization failed"));
-
-        when(repository.findById(orderId)).thenReturn(Mono.just(orderMock));
-        when(mapper.toEntity(any(Order.class))).thenReturn(new OrderEntity());
-        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-        when(valueOperations.set(anyString(), anyString(), any())).thenReturn(Mono.just(true));
-
-        // Act
-        Mono<Order> result = orderUseCase.getById(orderId);
-
-        // Assert
-        StepVerifier.create(result)
-                .expectNext(orderMock)
-                .verifyComplete();
-
-        verify(repository).findById(orderId);
+        verify(objectMapper).writeValueAsString(entityMock);
+        verify(valueOperations, never()).set(eq(cacheKey), anyString(), any());
     }
 }

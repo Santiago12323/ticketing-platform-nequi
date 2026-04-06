@@ -51,7 +51,6 @@ class DynamoTicketRepositoryConcurrencyTest {
                 .doOnSuccess(v -> log.info("Entorno de base de datos inicializado"))
                 .block(Duration.ofSeconds(10));
 
-        // 2. EJECUCION: Simulacion de carga simultanea
         List<InventoryResponse> results = Flux.range(1, CONCURRENT_USERS)
                 .map(i -> OrderId.of(UUID.randomUUID().toString()))
                 .flatMap(orderId ->

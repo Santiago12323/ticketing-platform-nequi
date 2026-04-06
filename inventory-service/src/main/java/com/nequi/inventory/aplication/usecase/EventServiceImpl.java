@@ -48,7 +48,6 @@ public class EventServiceImpl implements EventService {
     }
 
     private Event buildEvent(EventId eventId, int capacity, String name, String location) {
-        // Asumiendo que tu modelo Event tiene un constructor o builder similar
         return new Event(
                 eventId,
                 name,

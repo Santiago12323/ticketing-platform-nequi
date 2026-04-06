@@ -100,7 +100,6 @@ class InventoryServiceImplTest {
         StepVerifier.create(inventoryService.reserve(eventId, ticketIdSet, orderId))
                 .verifyComplete();
 
-        // Verificamos
         verify(ticketRepository, times(2)).reserveAll(any(), any(), any());
     }
 
