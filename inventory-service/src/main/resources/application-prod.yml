@@ -46,7 +46,7 @@ ticketing:
     ttl-minutes: 5
 
   statemachine:
-    audit-enabled: true
+    audit-enabled: false
 
 logging:
   level:

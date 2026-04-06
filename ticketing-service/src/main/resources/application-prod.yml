@@ -1,21 +1,55 @@
+spring:
+  data:
+    redis:
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES}
+      password: ${REDIS_PASSWORD}
+      ssl: true
+      lettuce:
+        pool:
+          max-active: 64
+          max-idle: 32
+          max-wait: 1000ms
 
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:us-east-1}
+      sqs:
+        inventory-request-queue: ${SQS_INVENTORY_REQUEST_URL}
+        inventory-response-queue: ${SQS_INVENTORY_RESPONSE_URL}
+        inventory-response-dlq: ${SQS_INVENTORY_RESPONSE_DLQ_URL}
+        order-ttl-queue: ${SQS_ORDER_TTL_URL}
+        inventory-ttl-queue: ${SQS_INVENTORY_TTL_URL}
+      sns:
+        order-expiration-topic: ${SNS_ORDER_EXPIRATION_ARN}
+      redis:
+        orders-stream: ${REDIS_ORDERS_STREAM:orders-prod}
+        payments-stream: ${REDIS_PAYMENTS_STREAM:payments-prod}
+
+app:
+  messaging:
+    sqs:
+      inventory-queue-url: ${spring.cloud.aws.sqs.inventory-request-queue}
+      response-queue-url: ${spring.cloud.aws.sqs.inventory-response-queue}
+      message-group-id: inventory-prod
+    retry:
+      max-attempts: 5
+      backoff-millis: 200
+    audit:
+      enabled: true
 
 ticketing:
+  cache:
+    ttl-minutes: 10
   statemachine:
     audit-enabled: false
-
-aws:
-  region: ${AWS_REGION}
-  dynamodb:
-    table-orders: ${DYNAMODB_TABLE_ORDERS:orders}
-    table-events: ${DYNAMODB_TABLE_EVENTS:events}
-    table-inventory: ${DYNAMODB_TABLE_INVENTORY:inventory}
-    table-outbox: ${DYNAMODB_TABLE_OUTBOX:outbox}
-  sqs:
-    queue-url: ${SQS_QUEUE_URL}
-    dead-letter-queue-url: ${SQS_DLQ_URL}
 
 logging:
   level:
     root: WARN
     com.nequi: INFO
+    org.springframework.statemachine: INFO
+    org.springframework.data.redis: WARN
+  pattern:
+    console: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}", "level":"%p", "trace":"%X{traceId}", "span":"%X{spanId}", "thread":"%t", "class":"%c{1}", "msg":"%m"}%n'

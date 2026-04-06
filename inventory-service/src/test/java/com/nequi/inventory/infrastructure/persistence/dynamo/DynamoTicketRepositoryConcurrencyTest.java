@@ -7,6 +7,7 @@ import com.nequi.inventory.infrastructure.messaging.sqs.dto.response.InventoryRe
 import com.nequi.inventory.infrastructure.messaging.sqs.enums.Type;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Slf4j
 @SpringBootTest
 @ActiveProfiles("local")
+@Tag("integration")
 class DynamoTicketRepositoryConcurrencyTest {
 
     @Autowired
