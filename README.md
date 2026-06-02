@@ -1,7 +1,4 @@
-**Candidato:** Santiago Coronado  
-**Rol:** Ingeniero de Software / Backend Developer  
-**Proyecto:** Prueba Técnica Senior - Nequi
----
+
 
 #  Reactive Ticketing Ecosystem: High-Concurrency & Event-Driven
 ## Visión General
